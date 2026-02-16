@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
-import { processLeadData, generateLeadSuggestions } from '../services/openaiService'
 import { createLead } from '../services/leadsService'
 import './LeadGenerator.css'
 
@@ -15,7 +14,7 @@ const LeadGenerator = () => {
     website: '',
     companySize: '',
     location: '',
-    notes: ''
+    notes: '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -27,26 +26,26 @@ const LeadGenerator = () => {
     mutationFn: createLead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
     },
   })
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
     setError(null)
     setSuccess(false)
   }
 
   const validateForm = () => {
     const required = ['companyName', 'industry', 'contactName', 'email']
-    const missing = required.filter(field => !formData[field])
-    
+    const missing = required.filter((field) => !formData[field])
+
     if (missing.length > 0) {
       setError(`Please fill in required fields: ${missing.join(', ')}`)
       return false
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email)) {
       setError('Please enter a valid email address')
@@ -61,24 +60,20 @@ const LeadGenerator = () => {
     setError(null)
     setSuccess(false)
 
-    if (!validateForm()) {
-      return
-    }
+    if (!validateForm()) return
 
     setLoading(true)
     try {
-      const processedLead = await processLeadData(formData)
       await createLeadMutation.mutateAsync({
-        full_name: processedLead.companyName || processedLead.contactName,
-        email: processedLead.email,
-        phone: processedLead.phone,
-        source: formData.source || 'AI Generator',
-        status: processedLead.aiAnalysis?.priority === 'high' ? 'Interested' : 'New',
-        score: processedLead.aiAnalysis?.leadScore,
+        full_name: formData.contactName,
+        email: formData.email,
+        phone: formData.phone,
+        source: 'Manual',
+        status: 'New',
+        score: null,
       })
       setSuccess(true)
-      
-      // Reset form after a delay
+
       setTimeout(() => {
         setFormData({
           companyName: '',
@@ -89,32 +84,13 @@ const LeadGenerator = () => {
           website: '',
           companySize: '',
           location: '',
-          notes: ''
+          notes: '',
         })
         setSuccess(false)
       }, 2000)
     } catch (err) {
-      setError('Failed to process lead. Please try again.')
+      setError('Failed to create lead. Please try again.')
       console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGenerateSuggestions = async () => {
-    if (!formData.industry) {
-      setError('Please enter an industry first to generate suggestions')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const suggestions = await generateLeadSuggestions(formData.industry)
-      if (suggestions.length > 0) {
-        setFormData(prev => ({ ...prev, ...suggestions[0] }))
-      }
-    } catch (err) {
-      console.error('Error generating suggestions:', err)
     } finally {
       setLoading(false)
     }
@@ -123,8 +99,8 @@ const LeadGenerator = () => {
   return (
     <div className="lead-generator">
       <div className="generator-header">
-        <h2>Generate New Lead</h2>
-        <p className="subtitle">Fill in the required fields and let AI process and enrich your lead data</p>
+        <h2>Create New Lead</h2>
+        <p className="subtitle">Fill in the required fields to create a new lead</p>
       </div>
 
       <form onSubmit={handleSubmit} className="lead-form">
@@ -266,34 +242,21 @@ const LeadGenerator = () => {
         {success && (
           <div className="alert alert-success">
             <CheckCircle className="alert-icon" />
-            <span>Lead generated successfully! Redirecting to dashboard...</span>
+            <span>Lead created successfully!</span>
           </div>
         )}
 
         <div className="form-actions">
-          <button
-            type="button"
-            onClick={handleGenerateSuggestions}
-            className="btn btn-secondary"
-            disabled={loading || !formData.industry}
-          >
-            <Sparkles className="btn-icon" />
-            AI Generate Suggestions
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-          >
+          <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? (
               <>
                 <Loader2 className="btn-icon spinning" />
-                Processing with AI...
+                Creating lead...
               </>
             ) : (
               <>
                 <Sparkles className="btn-icon" />
-                Generate Lead
+                Create Lead
               </>
             )}
           </button>

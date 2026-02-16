@@ -5,16 +5,12 @@ export const LEAD_STATUSES = ['New', 'Contacted', 'Interested', 'Proposal Sent',
 
 export const PIPELINE_STAGES = ['New', 'Contacted', 'Proposal', 'Negotiation', 'Closed']
 
-const SUPABASE_ENABLED = !!supabase
-
-// When Supabase is disabled, these functions fall back to in-memory/mock behavior
+async function currentUserId() {
+  const { data } = await supabase.auth.getUser()
+  return data?.user?.id ?? null
+}
 
 export async function fetchLeads() {
-  if (!SUPABASE_ENABLED) {
-    // No backend yet – return empty list so UI still renders
-    return []
-  }
-
   const { data, error } = await supabase
     .from('leads')
     .select(
@@ -27,6 +23,7 @@ export async function fetchLeads() {
       status,
       score,
       assigned_to,
+      created_by,
       created_at,
       updated_at,
       companies (
@@ -42,21 +39,7 @@ export async function fetchLeads() {
 }
 
 export async function createLead(payload) {
-  if (!SUPABASE_ENABLED) {
-    // Return a mock lead object so the caller can still show success
-    return {
-      id: `local_${Date.now()}`,
-      full_name: payload.full_name,
-      email: payload.email,
-      phone: payload.phone,
-      source: payload.source,
-      status: payload.status || 'New',
-      score: payload.score ?? null,
-      assigned_to: payload.assigned_to ?? null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  }
+  const userId = await currentUserId()
 
   const { data, error } = await supabase
     .from('leads')
@@ -68,7 +51,7 @@ export async function createLead(payload) {
       status: payload.status || 'New',
       score: payload.score ?? null,
       assigned_to: payload.assigned_to ?? null,
-      created_by: payload.created_by ?? (await supabase.auth.getUser())?.data.user?.id,
+      created_by: userId,
       company_id: payload.company_id ?? null,
     })
     .select()
@@ -79,22 +62,17 @@ export async function createLead(payload) {
 }
 
 export async function updateLead(id, updates) {
-  if (!SUPABASE_ENABLED) {
-    // No-op in local mode
-    return { id, ...updates }
-  }
-
-  const { data, error } = await supabase.from('leads').update(updates).eq('id', id).select().single()
+  const { data, error } = await supabase
+    .from('leads')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
   if (error) throw error
   return data
 }
 
 export async function deleteLead(id) {
-  if (!SUPABASE_ENABLED) {
-    // No-op in local mode
-    return
-  }
-
   const { error } = await supabase.from('leads').delete().eq('id', id)
   if (error) throw error
 }
@@ -104,18 +82,10 @@ export async function moveLeadStage(id, newStatus) {
 }
 
 export async function fetchDashboardStats() {
-  if (!SUPABASE_ENABLED) {
-    // Local default stats
-    return {
-      totalLeads: 0,
-      byStatus: LEAD_STATUSES.reduce((acc, s) => ({ ...acc, [s]: 0 }), {}),
-      avgScore: 0,
-      bySource: {},
-    }
-  }
+  const { data: allLeads, error } = await supabase
+    .from('leads')
+    .select('status, score, created_at, source')
 
-  // Simple example: count leads by status and total
-  const { data: allLeads, error } = await supabase.from('leads').select('status, score, created_at, source')
   if (error) throw error
 
   const total = allLeads.length
