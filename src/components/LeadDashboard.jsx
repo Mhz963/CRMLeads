@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Trash2, Eye, TrendingUp, Calendar, Building2, Mail, Phone, Globe, MapPin, Tag } from 'lucide-react'
-import './LeadDashboard.css'
+import { Search, Filter, Trash2, TrendingUp, Calendar, Building2, Mail, Phone, Globe, MapPin, Tag } from 'lucide-react'
 import './LeadDashboard.css'
 
-const LeadDashboard = ({ leads, setLeads }) => {
+const LeadDashboard = ({ leads = [], setLeads }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPriority, setFilterPriority] = useState('all')
   const [selectedLead, setSelectedLead] = useState(null)

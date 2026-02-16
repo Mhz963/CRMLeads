@@ -8,15 +8,18 @@ npm install
 
 ## Step 2: Set Up Environment Variables
 
-Create a `.env` file in the root directory with your OpenAI API key:
+Create a `.env` file in the root directory with your keys:
 
 ```
 VITE_OPENAI_API_KEY=sk-your-actual-api-key-here
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 **Important**: 
 - Never commit your `.env` file to version control
-- Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+- Get your OpenAI key from [OpenAI Platform](https://platform.openai.com/api-keys)
+- Get your Supabase URL and anon key from Supabase project settings → API
 - The `.env` file is already in `.gitignore`
 
 ## Step 3: Run Development Server

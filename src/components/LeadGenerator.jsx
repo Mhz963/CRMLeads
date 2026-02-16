@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { processLeadData, generateLeadSuggestions } from '../services/openaiService'
-import './LeadGenerator.css'
+import { createLead } from '../services/leadsService'
 import './LeadGenerator.css'
 
-const LeadGenerator = ({ onLeadGenerated }) => {
+const LeadGenerator = () => {
   const [formData, setFormData] = useState({
     companyName: '',
     industry: '',
@@ -20,6 +21,14 @@ const LeadGenerator = ({ onLeadGenerated }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+
+  const queryClient = useQueryClient()
+  const createLeadMutation = useMutation({
+    mutationFn: createLead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+    },
+  })
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -59,7 +68,14 @@ const LeadGenerator = ({ onLeadGenerated }) => {
     setLoading(true)
     try {
       const processedLead = await processLeadData(formData)
-      onLeadGenerated(processedLead)
+      await createLeadMutation.mutateAsync({
+        full_name: processedLead.companyName || processedLead.contactName,
+        email: processedLead.email,
+        phone: processedLead.phone,
+        source: formData.source || 'AI Generator',
+        status: processedLead.aiAnalysis?.priority === 'high' ? 'Interested' : 'New',
+        score: processedLead.aiAnalysis?.leadScore,
+      })
       setSuccess(true)
       
       // Reset form after a delay

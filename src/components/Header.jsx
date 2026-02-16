@@ -1,8 +1,8 @@
+import { NavLink } from 'react-router-dom'
 import { Sparkles, LayoutDashboard, Zap } from 'lucide-react'
 import './Header.css'
-import './Header.css'
 
-const Header = ({ activeTab, setActiveTab }) => {
+const Header = () => {
   return (
     <header className="header">
       <div className="header-content">
@@ -11,20 +11,38 @@ const Header = ({ activeTab, setActiveTab }) => {
           <h1>AI CRM Leads</h1>
         </div>
         <nav className="nav-tabs">
-          <button
-            className={`nav-tab ${activeTab === 'generate' ? 'active' : ''}`}
-            onClick={() => setActiveTab('generate')}
-          >
-            <Zap className="nav-icon" />
-            Generate Leads
-          </button>
-          <button
-            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
           >
             <LayoutDashboard className="nav-icon" />
             Dashboard
-          </button>
+          </NavLink>
+          <NavLink
+            to="/leads"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            <Zap className="nav-icon" />
+            Leads
+          </NavLink>
+          <NavLink
+            to="/pipeline"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            Pipeline
+          </NavLink>
+          <NavLink
+            to="/tasks"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            Tasks
+          </NavLink>
+          <NavLink
+            to="/reports"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            Reports
+          </NavLink>
         </nav>
       </div>
     </header>

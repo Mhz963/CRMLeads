@@ -17,10 +17,13 @@ A fully functional, AI-enabled CRM system for generating and managing leads with
 
 - **React 18** - Modern React with hooks
 - **Vite** - Fast build tool and dev server
-- **OpenAI API** - AI-powered lead processing
-- **TSParticles** - Beautiful particle effects
+- **React Router** - Multi-page dashboard layout
+- **React Query** - Data fetching & caching
+- **Supabase (Postgres + Auth + RLS)** - Backend, database, and auth
+- **OpenAI API** - AI-powered lead processing and scoring
+- **TSParticles** - Particle effects background
 - **Lucide React** - Modern icon library
-- **Framer Motion** - Smooth animations
+- **Recharts** - Analytics charts (ready to extend)
 
 ## Getting Started
 
@@ -136,6 +139,8 @@ CRMLeads/
 ## Environment Variables
 
 - `VITE_OPENAI_API_KEY` - Your OpenAI API key (required)
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase anon public key
 
 ## Color Scheme
 
