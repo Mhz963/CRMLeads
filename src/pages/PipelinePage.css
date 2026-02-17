@@ -1,0 +1,232 @@
+/* ════════════════════════════  PIPELINE / KANBAN  ════════════════════════════ */
+
+.pipeline-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.pipeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.pipeline-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.pipeline-header p {
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.pipeline-summary {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.pipeline-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 1rem;
+  color: var(--text-secondary);
+}
+
+/* Board */
+.pipeline-board {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  min-height: calc(100vh - 260px);
+}
+
+.pipeline-column {
+  flex: 1;
+  min-width: 240px;
+  max-width: 300px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 2px solid var(--border);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.pipeline-column.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-opacity-10);
+  box-shadow: 0 0 0 3px var(--primary-opacity-20);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.column-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.column-header h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.column-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--primary-opacity-10);
+  color: var(--primary);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.column-body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.column-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.column-empty p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Pipeline Card */
+.pipeline-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  cursor: grab;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.pipeline-card:hover {
+  border-color: var(--primary-opacity-40);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.pipeline-card:active {
+  cursor: grabbing;
+}
+
+.pipeline-card.dragging {
+  opacity: 0.4;
+  transform: rotate(2deg);
+}
+
+.pipeline-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.drag-handle {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+.card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.card-detail svg {
+  flex-shrink: 0;
+}
+
+.card-detail span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.card-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.card-source {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* Spinning */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .pipeline-board {
+    flex-direction: column;
+  }
+
+  .pipeline-column {
+    max-width: none;
+    min-width: 0;
+  }
+}

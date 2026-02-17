@@ -2,21 +2,21 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ParticleBackground from './components/ParticleBackground'
 import Header from './components/Header'
-import LeadDashboard from './components/LeadDashboard'
-import LeadGenerator from './components/LeadGenerator'
 import LeadsPage from './pages/LeadsPage'
 import TasksPage from './pages/TasksPage'
 import DashboardPage from './pages/DashboardPage'
+import PipelinePage from './pages/PipelinePage'
+import LeadProfilePage from './pages/LeadProfilePage'
 import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
 import AdminPage from './pages/AdminPage'
 import { supabase } from './services/supabaseClient'
-import { syncUserProfile, fetchUserProfile } from './services/authService'
+import { syncUserProfile } from './services/authService'
 import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null) // crm_users row (has role)
+  const [userProfile, setUserProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const location = useLocation()
 
@@ -70,8 +70,6 @@ function App() {
 
   const isLoggedIn = !!user
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
-
-  // Show Header only when logged in (not on landing / auth pages)
   const showHeader = isLoggedIn && !isPublicRoute
 
   return (
@@ -105,12 +103,12 @@ function App() {
               element={isLoggedIn ? <LeadsPage /> : <Navigate to="/signin" replace />}
             />
             <Route
-              path="/leads/new-ai"
-              element={isLoggedIn ? <LeadGenerator /> : <Navigate to="/signin" replace />}
+              path="/leads/:id"
+              element={isLoggedIn ? <LeadProfilePage /> : <Navigate to="/signin" replace />}
             />
             <Route
               path="/pipeline"
-              element={isLoggedIn ? <LeadDashboard /> : <Navigate to="/signin" replace />}
+              element={isLoggedIn ? <PipelinePage /> : <Navigate to="/signin" replace />}
             />
             <Route
               path="/tasks"
@@ -125,22 +123,6 @@ function App() {
                   <Navigate to="/signin" replace />
                 )
               }
-            />
-            <Route
-              path="/companies"
-              element={isLoggedIn ? <div className="animate-fade-in" style={{padding:'2rem',textAlign:'center',color:'var(--text-secondary)'}}>Companies (coming soon)</div> : <Navigate to="/signin" replace />}
-            />
-            <Route
-              path="/deals"
-              element={isLoggedIn ? <div className="animate-fade-in" style={{padding:'2rem',textAlign:'center',color:'var(--text-secondary)'}}>Deals (coming soon)</div> : <Navigate to="/signin" replace />}
-            />
-            <Route
-              path="/settings"
-              element={isLoggedIn ? <div className="animate-fade-in" style={{padding:'2rem',textAlign:'center',color:'var(--text-secondary)'}}>Settings (coming soon)</div> : <Navigate to="/signin" replace />}
-            />
-            <Route
-              path="/reports"
-              element={isLoggedIn ? <div className="animate-fade-in" style={{padding:'2rem',textAlign:'center',color:'var(--text-secondary)'}}>Reports (coming soon)</div> : <Navigate to="/signin" replace />}
             />
 
             {/* Catch-all */}

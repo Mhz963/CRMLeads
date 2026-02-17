@@ -1,3 +1,5 @@
+/* ════════════════════════════  DASHBOARD  ════════════════════════════ */
+
 .dashboard-page {
   display: flex;
   flex-direction: column;
@@ -11,48 +13,240 @@
 
 .dashboard-page-header p {
   color: var(--text-secondary);
+  margin-top: 0.25rem;
 }
 
-.dashboard-page-grid {
+/* ─── Metric Cards ─── */
+.metric-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
-.dashboard-card {
+.metric-card {
   background: var(--bg-card);
-  border-radius: 0.75rem;
   border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.metric-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.metric-icon-wrap.blue {
+  background: var(--primary-opacity-10);
+  color: var(--primary);
+}
+
+.metric-icon-wrap.green {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.metric-icon-wrap.purple {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+
+.metric-icon-wrap.orange {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.1rem;
+}
+
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* ─── Charts ─── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
   padding: 1.5rem;
 }
 
-.dashboard-card h3 {
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
+.chart-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
 }
 
-.dashboard-card .metric {
-  font-size: 1.8rem;
-  font-weight: 700;
+.chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
-.dashboard-section h3 {
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
+/* ─── Bottom Row ─── */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
 }
 
-.status-list {
+.feed-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.feed-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.empty-text {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}
+
+/* Activity Feed */
+.activity-feed {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-height: 350px;
+  overflow-y: auto;
 }
 
-.status-item {
+.activity-item {
   display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: var(--primary-opacity-10);
-  border-radius: 0.5rem;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  font-size: 1.05rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.activity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.activity-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.activity-text strong {
+  color: var(--primary);
+}
+
+.activity-time {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* Due Tasks */
+.due-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.due-task-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(245, 158, 11, 0.06);
+  border-radius: 0.5rem;
+  border-left: 3px solid #f59e0b;
+}
+
+.due-icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.due-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.due-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.due-lead {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.due-date {
+  font-size: 0.78rem;
+  color: #f59e0b;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1024px) {
+  .charts-row,
+  .bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .metric-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

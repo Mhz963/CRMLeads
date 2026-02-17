@@ -2,12 +2,11 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Sparkles,
   LayoutDashboard,
-  Zap,
+  Users,
+  KanbanSquare,
   ClipboardList,
-  BarChart3,
   Shield,
   LogOut,
-  User,
 } from 'lucide-react'
 import { signOut } from '../services/authService'
 import './Header.css'
@@ -33,7 +32,7 @@ const Header = ({ user, userProfile }) => {
       <div className="header-content">
         <div className="logo">
           <Sparkles className="logo-icon" />
-          <h1>AI CRM Leads</h1>
+          <h1>CRM Leads</h1>
         </div>
 
         <nav className="nav-tabs">
@@ -48,13 +47,14 @@ const Header = ({ user, userProfile }) => {
             to="/leads"
             className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
           >
-            <Zap className="nav-icon" />
+            <Users className="nav-icon" />
             Leads
           </NavLink>
           <NavLink
             to="/pipeline"
             className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
           >
+            <KanbanSquare className="nav-icon" />
             Pipeline
           </NavLink>
           <NavLink
@@ -63,13 +63,6 @@ const Header = ({ user, userProfile }) => {
           >
             <ClipboardList className="nav-icon" />
             Tasks
-          </NavLink>
-          <NavLink
-            to="/reports"
-            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-          >
-            <BarChart3 className="nav-icon" />
-            Reports
           </NavLink>
           {role === 'admin' && (
             <NavLink

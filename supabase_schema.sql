@@ -390,3 +390,17 @@ create policy "email_templates_owner_update"
   on public.email_templates for update
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid());
+
+-- ══════════════════════════════════════════════════════════════
+-- MIGRATION: Add new columns for Demo CRM (NZ Business Clients)
+-- Run this section if tables already exist without these columns
+-- ══════════════════════════════════════════════════════════════
+
+-- New fields on leads table
+alter table public.leads add column if not exists services text;
+alter table public.leads add column if not exists user_ip text;
+alter table public.leads add column if not exists notes text;
+alter table public.leads add column if not exists tag text;
+
+-- Update default status for new leads
+alter table public.leads alter column status set default 'New Lead';
