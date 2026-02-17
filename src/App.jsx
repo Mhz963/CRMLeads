@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ParticleBackground from './components/ParticleBackground'
 import Header from './components/Header'
@@ -19,42 +19,60 @@ function App() {
   const [userProfile, setUserProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const location = useLocation()
+  const syncingRef = useRef(false)
 
+  /* ── 1. Listen for auth changes (only set user state, no DB calls) ── */
   useEffect(() => {
     let mounted = true
 
     const init = async () => {
-      const { data } = await supabase.auth.getUser()
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
-      const currentUser = data.user ?? null
+      const currentUser = data.session?.user ?? null
       setUser(currentUser)
-
-      if (currentUser) {
-        const profile = await syncUserProfile(currentUser)
-        if (mounted) setUserProfile(profile)
-      }
       setAuthReady(true)
     }
 
     init()
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-
-      if (currentUser) {
-        const profile = await syncUserProfile(currentUser)
-        setUserProfile(profile)
-      } else {
-        setUserProfile(null)
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        if (!currentUser) setUserProfile(null)
       }
-    })
+    )
 
     return () => {
       mounted = false
       listener.subscription.unsubscribe()
     }
   }, [])
+
+  /* ── 2. Sync profile to crm_users whenever `user` changes ── */
+  useEffect(() => {
+    if (!user) {
+      setUserProfile(null)
+      return
+    }
+
+    // Guard against duplicate syncs
+    if (syncingRef.current) return
+    syncingRef.current = true
+
+    const doSync = async () => {
+      try {
+        const profile = await syncUserProfile(user)
+        setUserProfile(profile)
+      } catch (err) {
+        console.error('Profile sync error:', err)
+      } finally {
+        syncingRef.current = false
+      }
+    }
+
+    doSync()
+  }, [user])
 
   if (!authReady) {
     return (
