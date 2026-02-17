@@ -1,3 +1,24 @@
+/* ── Halvena Font Family ── */
+@font-face {
+  font-family: 'Halvena';
+  src: url('/fonts/Halvena.woff2') format('woff2'),
+       url('/fonts/Halvena.woff') format('woff'),
+       url('/fonts/Halvena.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Halvena';
+  src: url('/fonts/Halvena-Bold.woff2') format('woff2'),
+       url('/fonts/Halvena-Bold.woff') format('woff'),
+       url('/fonts/Halvena-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -31,9 +52,8 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Halvena', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #F7F7F7;
