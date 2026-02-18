@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react'
-import { signUp, signIn } from '../services/authService'
+import { signUp, signIn, syncUserProfile } from '../services/authService'
 import './AuthPage.css'
 
 const AuthPage = ({ mode = 'signin' }) => {
@@ -62,18 +62,31 @@ const AuthPage = ({ mode = 'signin' }) => {
     setLoading(true)
     try {
       if (isSignUp) {
-        await signUp({
+        const data = await signUp({
           email: form.email,
           password: form.password,
           fullName: form.fullName,
         })
-        setSuccessMsg(
-          'Account created! Please check your email to confirm your account, then sign in.'
-        )
-        setForm({ fullName: '', email: '', password: '', confirmPassword: '' })
+
+        // If session is returned (email confirmation disabled), sync & go to dashboard
+        if (data?.session?.user) {
+          await syncUserProfile(data.session.user)
+          navigate('/dashboard', { replace: true })
+        } else {
+          // Email confirmation is required — tell user to check inbox
+          setSuccessMsg(
+            'Account created! Please check your email to confirm your account, then sign in.'
+          )
+          setForm({ fullName: '', email: '', password: '', confirmPassword: '' })
+        }
       } else {
-        await signIn({ email: form.email, password: form.password })
-        // Auth listener in App.jsx will handle navigation
+        const data = await signIn({ email: form.email, password: form.password })
+
+        // Directly sync profile to crm_users right after sign-in
+        if (data?.user) {
+          await syncUserProfile(data.user)
+        }
+
         navigate('/dashboard', { replace: true })
       }
     } catch (err) {

@@ -74,6 +74,10 @@ function App() {
     doSync()
   }, [user])
 
+  const isLoggedIn = !!user
+  const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
+  const showParticles = isPublicRoute && !isLoggedIn
+
   if (!authReady) {
     return (
       <div className="app">
@@ -86,13 +90,11 @@ function App() {
     )
   }
 
-  const isLoggedIn = !!user
-  const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
   const showHeader = isLoggedIn && !isPublicRoute
 
   return (
     <div className="app">
-      <ParticleBackground />
+      {showParticles && <ParticleBackground />}
       <div className="app-content">
         {showHeader && <Header user={user} userProfile={userProfile} />}
         <main className={showHeader ? 'main-content' : ''}>

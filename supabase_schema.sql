@@ -33,25 +33,27 @@ end $$;
 
 alter table public.crm_users enable row level security;
 
--- Drop old policy that used FOR ALL (causes errors)
+-- Drop ALL old policies to start fresh
 drop policy if exists "crm_users_self" on public.crm_users;
-
--- Users can read all team members (needed for admin page & assignment dropdowns)
 drop policy if exists "crm_users_select_all" on public.crm_users;
+drop policy if exists "crm_users_insert_self" on public.crm_users;
+drop policy if exists "crm_users_update_self" on public.crm_users;
+drop policy if exists "crm_users_admin_update" on public.crm_users;
+drop policy if exists "crm_users_admin_delete" on public.crm_users;
+
+-- Anyone authenticated can read all team members (needed for admin page & assignment dropdowns)
 create policy "crm_users_select_all"
   on public.crm_users
   for select
-  using (true);
+  using (auth.uid() is not null);
 
--- Users can insert their own row (signup sync)
-drop policy if exists "crm_users_insert_self" on public.crm_users;
+-- Authenticated users can insert their own row (signup sync)
 create policy "crm_users_insert_self"
   on public.crm_users
   for insert
   with check (auth.uid() = id);
 
 -- Users can update their own row
-drop policy if exists "crm_users_update_self" on public.crm_users;
 create policy "crm_users_update_self"
   on public.crm_users
   for update
@@ -59,7 +61,6 @@ create policy "crm_users_update_self"
   with check (auth.uid() = id);
 
 -- Admins can update any row (role changes)
-drop policy if exists "crm_users_admin_update" on public.crm_users;
 create policy "crm_users_admin_update"
   on public.crm_users
   for update
@@ -71,7 +72,6 @@ create policy "crm_users_admin_update"
   );
 
 -- Admins can delete any member (remove team member)
-drop policy if exists "crm_users_admin_delete" on public.crm_users;
 create policy "crm_users_admin_delete"
   on public.crm_users
   for delete

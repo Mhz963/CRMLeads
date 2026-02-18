@@ -42,67 +42,63 @@ export async function syncUserProfile(user) {
   const fullName =
     user.user_metadata?.full_name || user.user_metadata?.name || null
 
-  // 1. Check if user already exists in crm_users
-  const { data: existing, error: selErr } = await supabase
-    .from('crm_users')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (selErr) {
-    console.error('syncUserProfile – select failed:', selErr)
-  }
-
-  if (existing) {
-    // Already exists — update email/name if changed
-    const { data: updated, error: updErr } = await supabase
+  try {
+    // 1. Check if user already exists in crm_users
+    const { data: existing } = await supabase
       .from('crm_users')
-      .update({ email: user.email, full_name: fullName })
+      .select('*')
       .eq('id', user.id)
+      .maybeSingle()
+
+    if (existing) {
+      // Already exists — update email/name if changed
+      const { data: updated } = await supabase
+        .from('crm_users')
+        .update({ email: user.email, full_name: fullName })
+        .eq('id', user.id)
+        .select()
+        .single()
+      return updated ?? existing
+    }
+
+    // 2. First user in system becomes admin, rest are team_member
+    const { count } = await supabase
+      .from('crm_users')
+      .select('id', { count: 'exact', head: true })
+
+    const role = count === 0 || count === null ? 'admin' : 'team_member'
+
+    // 3. Try upsert (insert or update on conflict)
+    const { data, error } = await supabase
+      .from('crm_users')
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          full_name: fullName,
+          role,
+        },
+        { onConflict: 'id' }
+      )
       .select()
       .single()
 
-    if (updErr) console.error('syncUserProfile – update failed:', updErr)
-    return updated ?? existing
-  }
-
-  // 2. First user in system becomes admin, rest are team_member
-  const { count, error: cntErr } = await supabase
-    .from('crm_users')
-    .select('id', { count: 'exact', head: true })
-
-  if (cntErr) console.error('syncUserProfile – count failed:', cntErr)
-
-  const role = count === 0 || count === null ? 'admin' : 'team_member'
-
-  // 3. Insert new row
-  const { data, error } = await supabase
-    .from('crm_users')
-    .insert({
-      id: user.id,
-      email: user.email,
-      full_name: fullName,
-      role,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('syncUserProfile – insert failed:', error)
-
-    // If insert failed due to conflict (duplicate), try to read anyway
-    if (error.code === '23505') {
-      const { data: retry } = await supabase
+    if (error) {
+      console.error('syncUserProfile – upsert failed:', error)
+      // Last resort: try plain read
+      const { data: fallback } = await supabase
         .from('crm_users')
         .select('*')
         .eq('id', user.id)
         .maybeSingle()
-      return retry
+      return fallback
     }
+
+    return data
+  } catch (err) {
+    console.error('syncUserProfile – unexpected error:', err)
     return null
   }
-
-  return data
 }
 
 /* ──────────────────  Fetch current user profile  ────────────────── */
