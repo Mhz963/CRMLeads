@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Shield, Users, Trash2, ChevronDown, Loader2, AlertCircle } from 'lucide-react'
+import {
+  Shield, Users, Trash2, ChevronDown, Loader2, AlertCircle,
+  Plug, Copy, CheckCircle, ExternalLink, Code2,
+} from 'lucide-react'
 import { fetchAllTeamMembers, updateMemberRole, removeMember } from '../services/authService'
 import './AdminPage.css'
 
@@ -8,6 +11,10 @@ const AdminPage = ({ currentUser, userProfile }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [actionLoading, setActionLoading] = useState(null) // userId being acted on
+  const [copiedField, setCopiedField] = useState(null)
+
+  // API integration info
+  const apiEndpoint = `${window.location.origin}/api/leads`
 
   const isAdmin = userProfile?.role === 'admin'
 
@@ -60,6 +67,41 @@ const AdminPage = ({ currentUser, userProfile }) => {
       setActionLoading(null)
     }
   }
+
+  const copyToClipboard = (text, field) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    })
+  }
+
+  const curlExample = `curl -X POST ${apiEndpoint} \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+64 21 123 4567",
+    "services": "Web Design",
+    "notes": "Interested in a new website",
+    "source_detail": "example.com"
+  }'`
+
+  const jsSnippet = `fetch('${apiEndpoint}', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': 'YOUR_API_KEY',
+  },
+  body: JSON.stringify({
+    name: formData.name,
+    email: formData.email,
+    phone: formData.phone,
+    services: formData.services,
+    notes: formData.message,
+    source_detail: window.location.hostname,
+  }),
+})`
 
   if (!isAdmin) {
     return (
@@ -203,6 +245,166 @@ const AdminPage = ({ currentUser, userProfile }) => {
           </div>
         </>
       )}
+
+      {/* ═══════════════  API INTEGRATION SECTION  ═══════════════ */}
+      <div className="api-section">
+        <div className="api-section-header">
+          <h2>
+            <Plug size={24} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
+            Website API Integration
+          </h2>
+          <p>Connect external websites to automatically capture leads into your CRM.</p>
+        </div>
+
+        {/* Endpoint & Key */}
+        <div className="api-cards-row">
+          <div className="api-card">
+            <h4>API Endpoint</h4>
+            <p className="api-card-desc">POST requests to this URL will create new leads.</p>
+            <div className="api-copy-row">
+              <code className="api-code-value">{apiEndpoint}</code>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard(apiEndpoint, 'endpoint')}
+                title="Copy endpoint"
+              >
+                {copiedField === 'endpoint' ? <CheckCircle size={15} /> : <Copy size={15} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="api-card">
+            <h4>Authentication</h4>
+            <p className="api-card-desc">Include your API key in the <code>x-api-key</code> header.</p>
+            <div className="api-copy-row">
+              <code className="api-code-value api-key-blur">Set CRM_API_KEY in Vercel env vars</code>
+            </div>
+            <p className="api-card-hint">
+              Go to Vercel → Project Settings → Environment Variables → add <code>CRM_API_KEY</code> with any secure string.
+            </p>
+          </div>
+        </div>
+
+        {/* Required Fields */}
+        <div className="api-card full-width">
+          <h4>Request Format</h4>
+          <p className="api-card-desc">
+            Send a <code>POST</code> request with <code>Content-Type: application/json</code>
+          </p>
+          <div className="api-fields-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>name</code></td><td>string</td><td>✅ Yes</td><td>Full name of the lead</td></tr>
+                <tr><td><code>email</code></td><td>string</td><td>⚡ Either</td><td>Email address (required if no phone)</td></tr>
+                <tr><td><code>phone</code></td><td>string</td><td>⚡ Either</td><td>Phone number (required if no email)</td></tr>
+                <tr><td><code>services</code></td><td>string</td><td>No</td><td>Services the lead is interested in</td></tr>
+                <tr><td><code>notes</code></td><td>string</td><td>No</td><td>Additional notes or message</td></tr>
+                <tr><td><code>source_detail</code></td><td>string</td><td>No</td><td>Which website sent the lead (e.g. "example.com")</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Code Examples */}
+        <div className="api-card full-width">
+          <h4><Code2 size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} /> Code Examples</h4>
+
+          <div className="code-example">
+            <div className="code-example-header">
+              <span>cURL</span>
+              <button
+                className="copy-btn small"
+                onClick={() => copyToClipboard(curlExample, 'curl')}
+              >
+                {copiedField === 'curl' ? <CheckCircle size={13} /> : <Copy size={13} />}
+                {copiedField === 'curl' ? ' Copied' : ' Copy'}
+              </button>
+            </div>
+            <pre className="code-block">{curlExample}</pre>
+          </div>
+
+          <div className="code-example">
+            <div className="code-example-header">
+              <span>JavaScript (fetch)</span>
+              <button
+                className="copy-btn small"
+                onClick={() => copyToClipboard(jsSnippet, 'js')}
+              >
+                {copiedField === 'js' ? <CheckCircle size={13} /> : <Copy size={13} />}
+                {copiedField === 'js' ? ' Copied' : ' Copy'}
+              </button>
+            </div>
+            <pre className="code-block">{jsSnippet}</pre>
+          </div>
+        </div>
+
+        {/* Embed Form */}
+        <div className="api-card full-width">
+          <h4>
+            <ExternalLink size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+            Embeddable Contact Form
+          </h4>
+          <p className="api-card-desc">
+            A ready-to-use HTML contact form that you can embed on any website. It posts leads directly to your CRM.
+          </p>
+          <a
+            href="/embed-example.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-outline api-embed-link"
+          >
+            <ExternalLink size={15} />
+            View Embed Example
+          </a>
+          <p className="api-card-hint" style={{ marginTop: '0.75rem' }}>
+            Open the example page, inspect the source, and copy the form HTML + script into any website.
+            Replace <code>CRM_API_URL</code> and <code>CRM_API_KEY</code> with your actual values.
+          </p>
+        </div>
+
+        {/* Setup checklist */}
+        <div className="api-card full-width api-checklist">
+          <h4>Setup Checklist</h4>
+          <ul>
+            <li>
+              <span className="check-icon">1</span>
+              <div>
+                <strong>Add Supabase Service Role Key</strong>
+                <p>In Vercel → Settings → Environment Variables, add <code>SUPABASE_SERVICE_ROLE_KEY</code> (find it in Supabase → Settings → API → service_role key)</p>
+              </div>
+            </li>
+            <li>
+              <span className="check-icon">2</span>
+              <div>
+                <strong>Set your CRM API Key</strong>
+                <p>In Vercel → add <code>CRM_API_KEY</code> with any strong secret string (e.g. a UUID or random password)</p>
+              </div>
+            </li>
+            <li>
+              <span className="check-icon">3</span>
+              <div>
+                <strong>Deploy</strong>
+                <p>Push your code to deploy the <code>/api/leads</code> endpoint on Vercel</p>
+              </div>
+            </li>
+            <li>
+              <span className="check-icon">4</span>
+              <div>
+                <strong>Share with website developers</strong>
+                <p>Give them the API endpoint URL, API key, and the embed example</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }

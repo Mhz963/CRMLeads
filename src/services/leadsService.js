@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient'
 export const PIPELINE_STAGES = ['New Lead', 'Contacted', 'Interested', 'Proposal', 'Closed']
 
 // Lead sources
-export const LEAD_SOURCES = ['Manual', 'Web Form', 'CSV Import', 'Referral', 'Social Media', 'Cold Call', 'Other']
+export const LEAD_SOURCES = ['Manual', 'Web Form', 'CSV Import', 'Website API', 'Referral', 'Social Media', 'Cold Call', 'Other']
 
 // Smart tags
 export const LEAD_TAGS = ['Hot', 'Needs Follow-up', 'High Value']

@@ -237,11 +237,11 @@ create policy "leads_admin_delete"
     exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
   );
 
--- Team members: own leads only (created_by = self)
+-- Team members: own leads (created_by = self) OR leads assigned to them
 drop policy if exists "leads_member_select" on public.leads;
 create policy "leads_member_select"
   on public.leads for select
-  using (created_by = auth.uid());
+  using (created_by = auth.uid() or assigned_to = auth.uid());
 
 drop policy if exists "leads_member_insert" on public.leads;
 create policy "leads_member_insert"
@@ -251,8 +251,8 @@ create policy "leads_member_insert"
 drop policy if exists "leads_member_update" on public.leads;
 create policy "leads_member_update"
   on public.leads for update
-  using (created_by = auth.uid())
-  with check (created_by = auth.uid());
+  using (created_by = auth.uid() or assigned_to = auth.uid())
+  with check (created_by = auth.uid() or assigned_to = auth.uid());
 
 drop policy if exists "leads_member_delete" on public.leads;
 create policy "leads_member_delete"
@@ -404,3 +404,16 @@ alter table public.leads add column if not exists tag text;
 
 -- Update default status for new leads
 alter table public.leads alter column status set default 'New Lead';
+
+-- ══════════════════════════════════════════════════════════════
+-- NOTE: Website API Lead Capture
+-- The /api/leads Vercel serverless function uses the SERVICE ROLE KEY
+-- to bypass RLS and insert leads from external websites.
+-- API leads have created_by = NULL and source = 'Website API'.
+-- Admins see them automatically; team members see them when assigned.
+--
+-- Required Vercel Environment Variables:
+--   VITE_SUPABASE_URL          (same as frontend)
+--   SUPABASE_SERVICE_ROLE_KEY  (from Supabase → Settings → API)
+--   CRM_API_KEY                (any strong secret string)
+-- ══════════════════════════════════════════════════════════════

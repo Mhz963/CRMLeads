@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Capture Form — Embed Example</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    /* ═══════════════════════════════════════════════
+       EMBEDDABLE LEAD CAPTURE FORM
+       Copy everything inside .crm-lead-form and the
+       <script> tag to embed on any website.
+       ═══════════════════════════════════════════════ */
+    .crm-lead-form {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 2rem;
+      max-width: 440px;
+      width: 100%;
+    }
+
+    .crm-lead-form h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 0.3rem;
+    }
+
+    .crm-lead-form .form-subtitle {
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .crm-lead-form .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .crm-lead-form label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.3rem;
+    }
+
+    .crm-lead-form label .required {
+      color: #ef4444;
+    }
+
+    .crm-lead-form input,
+    .crm-lead-form textarea {
+      width: 100%;
+      padding: 0.65rem 0.8rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: #1f2937;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    .crm-lead-form input:focus,
+    .crm-lead-form textarea:focus {
+      border-color: #008BFF;
+      box-shadow: 0 0 0 3px rgba(0, 139, 255, 0.1);
+    }
+
+    .crm-lead-form textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .crm-lead-form .submit-btn {
+      width: 100%;
+      padding: 0.75rem;
+      background: #008BFF;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    .crm-lead-form .submit-btn:hover {
+      background: #0070d6;
+    }
+
+    .crm-lead-form .submit-btn:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+
+    .crm-lead-form .form-message {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .crm-lead-form .form-message.success {
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+    }
+
+    .crm-lead-form .form-message.error {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       COPY FROM HERE ↓↓↓
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="crm-lead-form" id="crmLeadForm">
+    <h2>Get a Free Quote</h2>
+    <p class="form-subtitle">Fill out the form below and we'll get back to you within 24 hours.</p>
+
+    <form id="crmLeadFormEl" onsubmit="return submitCRMLead(event)">
+      <div class="form-group">
+        <label>Full Name <span class="required">*</span></label>
+        <input type="text" name="name" placeholder="John Doe" required />
+      </div>
+      <div class="form-group">
+        <label>Email Address <span class="required">*</span></label>
+        <input type="email" name="email" placeholder="john@example.com" required />
+      </div>
+      <div class="form-group">
+        <label>Phone Number</label>
+        <input type="tel" name="phone" placeholder="+64 21 123 4567" />
+      </div>
+      <div class="form-group">
+        <label>Services Interested In</label>
+        <input type="text" name="services" placeholder="e.g. Web Design, SEO" />
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea name="notes" placeholder="Tell us about your project..."></textarea>
+      </div>
+      <button type="submit" class="submit-btn" id="crmSubmitBtn">Send Enquiry</button>
+    </form>
+
+    <div id="crmFormMessage" class="form-message" style="display: none;"></div>
+  </div>
+
+  <script>
+    // ╔═══════════════════════════════════════════════════════════════╗
+    // ║  CONFIGURATION — Replace these with your actual values       ║
+    // ╚═══════════════════════════════════════════════════════════════╝
+    const CRM_API_URL = 'https://YOUR-APP.vercel.app/api/leads'; // Your CRM API endpoint
+    const CRM_API_KEY = 'YOUR-API-KEY-HERE';                     // Your CRM API key
+
+    async function submitCRMLead(event) {
+      event.preventDefault();
+
+      const form = document.getElementById('crmLeadFormEl');
+      const btn = document.getElementById('crmSubmitBtn');
+      const msg = document.getElementById('crmFormMessage');
+
+      // Collect form data
+      const formData = new FormData(form);
+      const payload = {
+        name:     formData.get('name'),
+        email:    formData.get('email'),
+        phone:    formData.get('phone') || '',
+        services: formData.get('services') || '',
+        notes:    formData.get('notes') || '',
+        source_detail: window.location.hostname, // Tracks which website sent the lead
+      };
+
+      // Disable button while submitting
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      msg.style.display = 'none';
+
+      try {
+        const response = await fetch(CRM_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CRM_API_KEY,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          msg.className = 'form-message success';
+          msg.textContent = 'Thank you! Your enquiry has been submitted. We\'ll be in touch soon.';
+          msg.style.display = 'block';
+          form.reset();
+        } else {
+          msg.className = 'form-message error';
+          msg.textContent = result.error || 'Something went wrong. Please try again.';
+          msg.style.display = 'block';
+        }
+      } catch (err) {
+        msg.className = 'form-message error';
+        msg.textContent = 'Network error. Please check your connection and try again.';
+        msg.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Enquiry';
+      }
+
+      return false;
+    }
+  </script>
+  <!-- ═══════════════════════════════════════════════════════════
+       COPY UNTIL HERE ↑↑↑
+       ═══════════════════════════════════════════════════════════ -->
+
+</body>
+</html>
