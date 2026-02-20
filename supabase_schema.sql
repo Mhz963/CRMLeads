@@ -406,6 +406,12 @@ alter table public.leads add column if not exists tag text;
 alter table public.leads alter column status set default 'New Lead';
 
 -- ══════════════════════════════════════════════════════════════
+-- REALTIME: Enable realtime on leads table for live notifications
+-- ══════════════════════════════════════════════════════════════
+
+alter publication supabase_realtime add table public.leads;
+
+-- ══════════════════════════════════════════════════════════════
 -- NOTE: Website API Lead Capture
 -- The /api/leads Vercel serverless function uses the SERVICE ROLE KEY
 -- to bypass RLS and insert leads from external websites.

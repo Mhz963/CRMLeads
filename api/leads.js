@@ -29,16 +29,15 @@ const corsHeaders = {
 }
 
 export default async function handler(req, res) {
-  // ── Handle CORS preflight ──
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, corsHeaders)
-    return res.end()
-  }
-
-  // Set CORS headers on every response
+  // Set CORS headers on EVERY response (including OPTIONS)
   Object.entries(corsHeaders).forEach(([key, value]) => {
     res.setHeader(key, value)
   })
+
+  // ── Handle CORS preflight ──
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
 
   // ── Only allow POST ──
   if (req.method !== 'POST') {

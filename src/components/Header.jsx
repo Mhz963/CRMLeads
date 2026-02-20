@@ -9,6 +9,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { signOut } from '../services/authService'
+import NotificationBell from './NotificationBell'
 import './Header.css'
 
 const Header = ({ user, userProfile }) => {
@@ -76,6 +77,7 @@ const Header = ({ user, userProfile }) => {
         </nav>
 
         <div className="auth-controls">
+          <NotificationBell />
           <div className="user-info">
             <div className="user-avatar">{initial}</div>
             <div className="user-meta">

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ParticleBackground from './components/ParticleBackground'
 import Header from './components/Header'
+import NotificationToast from './components/NotificationToast'
 import LeadsPage from './pages/LeadsPage'
 import TasksPage from './pages/TasksPage'
 import DashboardPage from './pages/DashboardPage'
@@ -12,6 +13,7 @@ import AuthPage from './pages/AuthPage'
 import AdminPage from './pages/AdminPage'
 import { supabase } from './services/supabaseClient'
 import { syncUserProfile } from './services/authService'
+import useNotificationStore from './stores/notificationStore'
 import './App.css'
 
 function App() {
@@ -74,6 +76,19 @@ function App() {
     doSync()
   }, [user])
 
+  /* ── 3. Start/stop Supabase Realtime notifications ── */
+  const startListening = useNotificationStore((s) => s.startListening)
+  const stopListening = useNotificationStore((s) => s.stopListening)
+
+  useEffect(() => {
+    if (user) {
+      startListening()
+    } else {
+      stopListening()
+    }
+    return () => stopListening()
+  }, [user, startListening, stopListening])
+
   const isLoggedIn = !!user
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
   const showParticles = isPublicRoute && !isLoggedIn
@@ -95,6 +110,7 @@ function App() {
   return (
     <div className="app">
       {showParticles && <ParticleBackground />}
+      {isLoggedIn && <NotificationToast />}
       <div className="app-content">
         {showHeader && <Header user={user} userProfile={userProfile} />}
         <main className={showHeader ? 'main-content' : ''}>
