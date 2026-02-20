@@ -76,18 +76,21 @@ function App() {
     doSync()
   }, [user])
 
-  /* ── 3. Start/stop Supabase Realtime notifications ── */
+  /* ── 3. Start/stop notifications + request browser permission ── */
   const startListening = useNotificationStore((s) => s.startListening)
   const stopListening = useNotificationStore((s) => s.stopListening)
+  const requestPermission = useNotificationStore((s) => s.requestPermission)
 
   useEffect(() => {
     if (user) {
       startListening()
+      // Request browser notification permission (like WhatsApp Web)
+      requestPermission()
     } else {
       stopListening()
     }
     return () => stopListening()
-  }, [user, startListening, stopListening])
+  }, [user, startListening, stopListening, requestPermission])
 
   const isLoggedIn = !!user
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)

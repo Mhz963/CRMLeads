@@ -1,25 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, UserPlus, Mail, Phone, Globe, Zap } from 'lucide-react'
+import {
+  X, UserPlus, Mail, Phone, Globe, Zap,
+  Sparkles, ArrowRight,
+} from 'lucide-react'
 import useNotificationStore from '../stores/notificationStore'
 import './NotificationToast.css'
 
-const SOURCE_ICONS = {
-  'Website API': <Globe size={14} />,
-  'Web Form': <Globe size={14} />,
-  'CSV Import': <Zap size={14} />,
-  'Manual': <UserPlus size={14} />,
+/* Source → icon + colours */
+const SOURCE_CFG = {
+  'Website API': { Icon: Globe,    color: '#10b981', bg: 'rgba(16,185,129,.10)' },
+  'Web Form':    { Icon: Globe,    color: '#3b82f6', bg: 'rgba(59,130,246,.10)' },
+  'CSV Import':  { Icon: Zap,      color: '#f59e0b', bg: 'rgba(245,158,11,.10)' },
+  'Manual':      { Icon: UserPlus, color: '#8b5cf6', bg: 'rgba(139,92,246,.10)' },
+  'Referral':    { Icon: Sparkles, color: '#ec4899', bg: 'rgba(236,72,153,.10)' },
 }
+const DEFAULT_CFG = { Icon: UserPlus, color: '#6366f1', bg: 'rgba(99,102,241,.10)' }
 
+/* ═══════════════════  TOAST CONTAINER  ═══════════════════ */
 const NotificationToast = () => {
   const navigate = useNavigate()
   const toasts = useNotificationStore((s) => s.toasts)
   const removeToast = useNotificationStore((s) => s.removeToast)
 
   return (
-    <div className="toast-container">
+    <div className="nt-container">
       {toasts.map((toast) => (
-        <ToastItem
+        <ToastCard
           key={toast.toastId}
           toast={toast}
           onClose={() => removeToast(toast.toastId)}
@@ -33,92 +40,102 @@ const NotificationToast = () => {
   )
 }
 
-const ToastItem = ({ toast, onClose, onView }) => {
+/* ═══════════════════  SINGLE TOAST  ═══════════════════ */
+const ToastCard = ({ toast, onClose, onView }) => {
   const [exiting, setExiting] = useState(false)
   const [progress, setProgress] = useState(100)
 
-  // Animate progress bar
+  /* Smooth progress bar via requestAnimationFrame */
   useEffect(() => {
     const start = Date.now()
-    const duration = 6000
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start
-      const remaining = Math.max(0, 100 - (elapsed / duration) * 100)
-      setProgress(remaining)
-      if (remaining <= 0) clearInterval(interval)
-    }, 50)
-    return () => clearInterval(interval)
+    let raf
+    const tick = () => {
+      const pct = Math.max(0, 100 - ((Date.now() - start) / 8000) * 100)
+      setProgress(pct)
+      if (pct > 0) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [])
 
-  const handleClose = () => {
-    setExiting(true)
-    setTimeout(onClose, 300) // Wait for exit animation
-  }
+  const handleClose = () => { setExiting(true); setTimeout(onClose, 400) }
+  const handleView  = () => { setExiting(true); setTimeout(onView, 400) }
 
-  const handleView = () => {
-    setExiting(true)
-    setTimeout(onView, 300)
-  }
+  const cfg = SOURCE_CFG[toast.source] || DEFAULT_CFG
+  const SourceIcon = cfg.Icon
 
-  const sourceIcon = SOURCE_ICONS[toast.source] || <UserPlus size={14} />
+  const initials = (toast.leadName || '?')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+
+  const timeStr = new Date(toast.timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
-    <div className={`toast-item ${exiting ? 'toast-exit' : 'toast-enter'}`}>
-      {/* Glow accent */}
-      <div className="toast-glow" />
-
-      {/* Progress bar */}
-      <div className="toast-progress">
-        <div className="toast-progress-fill" style={{ width: `${progress}%` }} />
+    <div className={`nt-card ${exiting ? 'nt-exit' : 'nt-enter'}`}>
+      {/* ── Gradient accent bar ── */}
+      <div className="nt-accent">
+        <div className="nt-accent-fill" style={{ width: `${progress}%` }} />
       </div>
 
-      {/* Header */}
-      <div className="toast-header">
-        <div className="toast-badge">
-          <UserPlus size={14} />
-          <span>New Lead</span>
+      {/* ── Header ── */}
+      <div className="nt-header">
+        <div className="nt-label">
+          <span className="nt-dot" />
+          NEW LEAD
         </div>
-        <button className="toast-close" onClick={handleClose}>
-          <X size={14} />
-        </button>
+        <div className="nt-header-right">
+          <span className="nt-time">{timeStr}</span>
+          <button className="nt-close" onClick={handleClose} aria-label="Close">
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Body */}
-      <div className="toast-body">
-        <div className="toast-avatar">
-          {toast.leadName?.charAt(0)?.toUpperCase() || '?'}
-        </div>
-        <div className="toast-info">
-          <span className="toast-name">{toast.leadName}</span>
-          <div className="toast-details">
+      {/* ── Body (clickable) ── */}
+      <div className="nt-body" onClick={handleView} role="button" tabIndex={0}>
+        <div className="nt-avatar">{initials}</div>
+
+        <div className="nt-info">
+          <span className="nt-name">{toast.leadName}</span>
+
+          <div className="nt-contact">
             {toast.leadEmail && (
-              <span className="toast-detail">
-                <Mail size={11} />
-                {toast.leadEmail}
+              <span className="nt-contact-item">
+                <Mail size={11} /> {toast.leadEmail}
               </span>
             )}
             {toast.leadPhone && (
-              <span className="toast-detail">
-                <Phone size={11} />
-                {toast.leadPhone}
+              <span className="nt-contact-item">
+                <Phone size={11} /> {toast.leadPhone}
               </span>
             )}
           </div>
-          <div className="toast-meta">
-            <span className="toast-source-badge">
-              {sourceIcon}
+
+          <div className="nt-tags">
+            <span
+              className="nt-source-pill"
+              style={{ color: cfg.color, background: cfg.bg }}
+            >
+              <SourceIcon size={11} />
               {toast.source}
             </span>
             {toast.services && (
-              <span className="toast-services">{toast.services}</span>
+              <span className="nt-service-pill">{toast.services}</span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Action */}
-      <button className="toast-view-btn" onClick={handleView}>
-        View Lead →
+      {/* ── Action button ── */}
+      <button className="nt-action" onClick={handleView}>
+        View Lead Profile
+        <ArrowRight size={14} />
       </button>
     </div>
   )
