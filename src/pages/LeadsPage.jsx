@@ -18,6 +18,11 @@ const EMPTY_FORM = {
   full_name: '',
   email: '',
   phone: '',
+  business_address: '',
+  website: '',
+  map_url: '',
+  google_rating: '',
+  google_reviews: '',
   source: 'Manual',
   services: '',
   notes: '',
@@ -90,6 +95,8 @@ const LeadsPage = () => {
           l.full_name?.toLowerCase().includes(q) ||
           l.email?.toLowerCase().includes(q) ||
           l.phone?.toLowerCase().includes(q) ||
+          l.business_address?.toLowerCase().includes(q) ||
+          l.website?.toLowerCase().includes(q) ||
           l.source?.toLowerCase().includes(q) ||
           l.notes?.toLowerCase().includes(q) ||
           l.services?.toLowerCase().includes(q)
@@ -122,7 +129,11 @@ const LeadsPage = () => {
   const handleAddLead = (e) => {
     e.preventDefault()
     if (!form.full_name.trim()) return
-    createMutation.mutate(form)
+    createMutation.mutate({
+      ...form,
+      google_rating: form.google_rating === '' ? null : Number(form.google_rating),
+      google_reviews: form.google_reviews === '' ? null : Number(form.google_reviews),
+    })
   }
 
   const handleWebFormSubmit = (e) => {
@@ -296,6 +307,7 @@ const LeadsPage = () => {
                 <SortHeader field="full_name">Name</SortHeader>
                 <SortHeader field="email">Email</SortHeader>
                 <th>Phone</th>
+                <th>Business</th>
                 <SortHeader field="status">Status</SortHeader>
                 <SortHeader field="source">Source</SortHeader>
                 <th>Tag</th>
@@ -313,6 +325,22 @@ const LeadsPage = () => {
                   </td>
                   <td className="cell-muted">{lead.email || '—'}</td>
                   <td className="cell-muted">{lead.phone || '—'}</td>
+                  <td className="cell-muted">
+                    <div className="business-cell">
+                      {lead.business_address && <div>{lead.business_address}</div>}
+                      {lead.website && (
+                        <a href={lead.website} target="_blank" rel="noopener noreferrer">
+                          {lead.website}
+                        </a>
+                      )}
+                      {(lead.google_rating !== null && lead.google_rating !== undefined) && (
+                        <span className="business-rating">
+                          {lead.google_rating}/5 {lead.google_reviews ? `(${lead.google_reviews})` : ''}
+                        </span>
+                      )}
+                      {!lead.business_address && !lead.website && lead.google_rating == null && '—'}
+                    </div>
+                  </td>
                   <td>
                     <span
                       className="status-pill"
@@ -404,6 +432,45 @@ const LeadsPage = () => {
                   </select>
                 </div>
                 <div className="form-field">
+                  <label>Address</label>
+                  <input
+                    value={form.business_address}
+                    onChange={(e) => setForm({ ...form, business_address: e.target.value })}
+                    placeholder="Business address"
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Website</label>
+                  <input
+                    value={form.website}
+                    onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    placeholder="https://example.com"
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Google Rating</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={form.google_rating}
+                    onChange={(e) => setForm({ ...form, google_rating: e.target.value })}
+                    placeholder="4.5"
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Google Reviews</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.google_reviews}
+                    onChange={(e) => setForm({ ...form, google_reviews: e.target.value })}
+                    placeholder="120"
+                  />
+                </div>
+                <div className="form-field">
                   <label>Services</label>
                   <input
                     value={form.services}
@@ -420,6 +487,14 @@ const LeadsPage = () => {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className="form-field full-w">
+                <label>Google Maps URL</label>
+                <input
+                  value={form.map_url}
+                  onChange={(e) => setForm({ ...form, map_url: e.target.value })}
+                  placeholder="https://www.google.com/maps/place/?q=place_id:..."
+                />
               </div>
               <div className="form-field full-w">
                 <label>Notes</label>

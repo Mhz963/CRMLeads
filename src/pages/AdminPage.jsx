@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   Shield, Users, Trash2, ChevronDown, Loader2, AlertCircle,
-  Plug, Copy, CheckCircle, ExternalLink, Code2,
+  Plug, Copy, CheckCircle, ExternalLink, Code2, MapPinned, Search,
 } from 'lucide-react'
 import { fetchAllTeamMembers, updateMemberRole, removeMember } from '../services/authService'
+import { supabase } from '../services/supabaseClient'
 import './AdminPage.css'
 
 const AdminPage = ({ currentUser, userProfile }) => {
@@ -12,6 +13,15 @@ const AdminPage = ({ currentUser, userProfile }) => {
   const [error, setError] = useState(null)
   const [actionLoading, setActionLoading] = useState(null) // userId being acted on
   const [copiedField, setCopiedField] = useState(null)
+  const [gmForm, setGmForm] = useState({
+    query: '',
+    location: '',
+    max_results: 10,
+    region: 'nz',
+  })
+  const [gmLoading, setGmLoading] = useState(false)
+  const [gmError, setGmError] = useState('')
+  const [gmResult, setGmResult] = useState(null)
 
   // API integration info
   const apiEndpoint = `${window.location.origin}/api/leads`
@@ -75,6 +85,56 @@ const AdminPage = ({ currentUser, userProfile }) => {
     })
   }
 
+  const handleGoogleImport = async (e) => {
+    e.preventDefault()
+    const query = gmForm.query.trim()
+    if (!query) {
+      setGmError('Please enter a business search query.')
+      return
+    }
+
+    setGmLoading(true)
+    setGmError('')
+    setGmResult(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+      if (!token) {
+        throw new Error('You are not authenticated. Please sign in again.')
+      }
+
+      const response = await fetch('/api/google-businesses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          query,
+          location: gmForm.location.trim(),
+          region: gmForm.region.trim() || 'nz',
+          max_results: Number(gmForm.max_results || 10),
+        }),
+      })
+
+      const payload = await response.json()
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Google import failed.')
+      }
+
+      setGmResult({
+        imported: payload.imported_count || 0,
+        skipped: payload.skipped_count || 0,
+      })
+    } catch (err) {
+      console.error(err)
+      setGmError(err.message || 'Failed to import businesses.')
+    } finally {
+      setGmLoading(false)
+    }
+  }
+
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: YOUR_API_KEY" \\
@@ -82,6 +142,10 @@ const AdminPage = ({ currentUser, userProfile }) => {
     "name": "John Doe",
     "email": "john@example.com",
     "phone": "+64 21 123 4567",
+    "business_address": "123 Queen Street, Auckland",
+    "website": "https://example.com",
+    "google_rating": 4.7,
+    "google_reviews": 210,
     "services": "Web Design",
     "notes": "Interested in a new website",
     "source_detail": "example.com"
@@ -97,6 +161,10 @@ const AdminPage = ({ currentUser, userProfile }) => {
     name: formData.name,
     email: formData.email,
     phone: formData.phone,
+    business_address: formData.address,
+    website: formData.website,
+    google_rating: formData.rating,
+    google_reviews: formData.reviews,
     services: formData.services,
     notes: formData.message,
     source_detail: window.location.hostname,
@@ -306,6 +374,11 @@ const AdminPage = ({ currentUser, userProfile }) => {
                 <tr><td><code>email</code></td><td>string</td><td>⚡ Either</td><td>Email address (required if no phone)</td></tr>
                 <tr><td><code>phone</code></td><td>string</td><td>⚡ Either</td><td>Phone number (required if no email)</td></tr>
                 <tr><td><code>services</code></td><td>string</td><td>No</td><td>Services the lead is interested in</td></tr>
+                <tr><td><code>business_address</code> / <code>address</code></td><td>string</td><td>No</td><td>Business location/address</td></tr>
+                <tr><td><code>website</code></td><td>string</td><td>No</td><td>Business website (with or without https)</td></tr>
+                <tr><td><code>google_rating</code> / <code>rating</code></td><td>number</td><td>No</td><td>Rating between 0 and 5</td></tr>
+                <tr><td><code>google_reviews</code> / <code>reviews</code></td><td>integer</td><td>No</td><td>Total review count</td></tr>
+                <tr><td><code>map_url</code></td><td>string</td><td>No</td><td>Google Maps URL</td></tr>
                 <tr><td><code>notes</code></td><td>string</td><td>No</td><td>Additional notes or message</td></tr>
                 <tr><td><code>source_detail</code></td><td>string</td><td>No</td><td>Which website sent the lead (e.g. "example.com")</td></tr>
               </tbody>
@@ -370,6 +443,90 @@ const AdminPage = ({ currentUser, userProfile }) => {
           </p>
         </div>
 
+        {/* Google Maps Import */}
+        <div className="api-card full-width">
+          <h4>
+            <MapPinned size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+            Google Maps Business Import
+          </h4>
+          <p className="api-card-desc">
+            Import businesses from Google Maps and save them directly as leads in your CRM.
+            This runs securely on the server using <code>GOOGLE_MAPS_API_KEY</code>.
+            Google usually provides name, address, website, phone, rating, and reviews;
+            email is often not available from Places API and may remain blank.
+          </p>
+
+          <form className="gm-import-form" onSubmit={handleGoogleImport}>
+            <div className="gm-grid">
+              <div className="gm-field">
+                <label>Search Query</label>
+                <input
+                  type="text"
+                  placeholder="e.g. dentists in auckland"
+                  value={gmForm.query}
+                  onChange={(e) => setGmForm((prev) => ({ ...prev, query: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="gm-field">
+                <label>Location (optional)</label>
+                <input
+                  type="text"
+                  placeholder="lat,lng e.g. -36.8485,174.7633"
+                  value={gmForm.location}
+                  onChange={(e) => setGmForm((prev) => ({ ...prev, location: e.target.value }))}
+                />
+              </div>
+
+              <div className="gm-field">
+                <label>Region</label>
+                <input
+                  type="text"
+                  maxLength={5}
+                  placeholder="nz"
+                  value={gmForm.region}
+                  onChange={(e) => setGmForm((prev) => ({ ...prev, region: e.target.value }))}
+                />
+              </div>
+
+              <div className="gm-field">
+                <label>Max Results</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={gmForm.max_results}
+                  onChange={(e) => setGmForm((prev) => ({ ...prev, max_results: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="gm-actions">
+              <button type="submit" className="btn-primary-action" disabled={gmLoading}>
+                {gmLoading ? <Loader2 size={16} className="spinning" /> : <Search size={16} />}
+                {gmLoading ? 'Importing...' : 'Import Businesses'}
+              </button>
+            </div>
+
+            {gmError && (
+              <div className="gm-status gm-error">
+                <AlertCircle size={16} />
+                <span>{gmError}</span>
+              </div>
+            )}
+
+            {gmResult && (
+              <div className="gm-status gm-success">
+                <CheckCircle size={16} />
+                <span>
+                  Imported {gmResult.imported} lead(s), skipped {gmResult.skipped} duplicate(s).
+                </span>
+              </div>
+            )}
+          </form>
+        </div>
+
         {/* Setup checklist */}
         <div className="api-card full-width api-checklist">
           <h4>Setup Checklist</h4>
@@ -391,12 +548,19 @@ const AdminPage = ({ currentUser, userProfile }) => {
             <li>
               <span className="check-icon">3</span>
               <div>
-                <strong>Deploy</strong>
-                <p>Push your code to deploy the <code>/api/leads</code> endpoint on Vercel</p>
+                <strong>Add Google Maps Key</strong>
+                <p>In Vercel → add <code>GOOGLE_MAPS_API_KEY</code> (do not expose this key in frontend code)</p>
               </div>
             </li>
             <li>
               <span className="check-icon">4</span>
+              <div>
+                <strong>Deploy</strong>
+                <p>Push your code to deploy the <code>/api/leads</code> and <code>/api/google-businesses</code> endpoints on Vercel</p>
+              </div>
+            </li>
+            <li>
+              <span className="check-icon">5</span>
               <div>
                 <strong>Share with website developers</strong>
                 <p>Give them the API endpoint URL, API key, and the embed example</p>

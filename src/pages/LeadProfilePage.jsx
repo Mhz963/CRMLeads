@@ -127,7 +127,17 @@ const LeadProfilePage = () => {
   }
 
   const handleSaveEdit = () => {
-    updateMutation.mutate(editForm)
+    updateMutation.mutate({
+      ...editForm,
+      google_rating:
+        editForm.google_rating === '' || editForm.google_rating === null
+          ? null
+          : Number(editForm.google_rating),
+      google_reviews:
+        editForm.google_reviews === '' || editForm.google_reviews === null
+          ? null
+          : Number(editForm.google_reviews),
+    })
     setIsEditing(false)
   }
 
@@ -142,6 +152,11 @@ const LeadProfilePage = () => {
       full_name: lead.full_name,
       email: lead.email || '',
       phone: lead.phone || '',
+      business_address: lead.business_address || '',
+      website: lead.website || '',
+      map_url: lead.map_url || '',
+      google_rating: lead.google_rating ?? '',
+      google_reviews: lead.google_reviews ?? '',
       services: lead.services || '',
       notes: lead.notes || '',
     })
@@ -252,6 +267,26 @@ const LeadProfilePage = () => {
               <label>Services</label>
               <input value={editForm.services} onChange={e => setEditForm({ ...editForm, services: e.target.value })} />
             </div>
+            <div className="edit-field">
+              <label>Address</label>
+              <input value={editForm.business_address} onChange={e => setEditForm({ ...editForm, business_address: e.target.value })} />
+            </div>
+            <div className="edit-field">
+              <label>Website</label>
+              <input value={editForm.website} onChange={e => setEditForm({ ...editForm, website: e.target.value })} />
+            </div>
+            <div className="edit-field">
+              <label>Google Rating</label>
+              <input type="number" min="0" max="5" step="0.1" value={editForm.google_rating} onChange={e => setEditForm({ ...editForm, google_rating: e.target.value })} />
+            </div>
+            <div className="edit-field">
+              <label>Google Reviews</label>
+              <input type="number" min="0" step="1" value={editForm.google_reviews} onChange={e => setEditForm({ ...editForm, google_reviews: e.target.value })} />
+            </div>
+            <div className="edit-field full">
+              <label>Google Maps URL</label>
+              <input value={editForm.map_url} onChange={e => setEditForm({ ...editForm, map_url: e.target.value })} />
+            </div>
             <div className="edit-field full">
               <label>Notes</label>
               <textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={3} />
@@ -283,6 +318,28 @@ const LeadProfilePage = () => {
                   <span>{lead.phone}</span>
                 </div>
               )}
+              {lead.business_address && (
+                <div className="detail-row">
+                  <MapPin size={16} />
+                  <span>{lead.business_address}</span>
+                </div>
+              )}
+              {lead.website && (
+                <div className="detail-row">
+                  <Globe size={16} />
+                  <a href={lead.website} target="_blank" rel="noopener noreferrer">
+                    {lead.website}
+                  </a>
+                </div>
+              )}
+              {(lead.google_rating !== null && lead.google_rating !== undefined) && (
+                <div className="detail-row">
+                  <Tag size={16} />
+                  <span>
+                    Rating: {lead.google_rating}/5 {lead.google_reviews ? `(${lead.google_reviews} reviews)` : ''}
+                  </span>
+                </div>
+              )}
               {lead.services && (
                 <div className="detail-row">
                   <Globe size={16} />
@@ -299,6 +356,14 @@ const LeadProfilePage = () => {
                 <div className="detail-row">
                   <MapPin size={16} />
                   <span>IP: {lead.user_ip}</span>
+                </div>
+              )}
+              {lead.map_url && (
+                <div className="detail-row">
+                  <Globe size={16} />
+                  <a href={lead.map_url} target="_blank" rel="noopener noreferrer">
+                    Open in Google Maps
+                  </a>
                 </div>
               )}
               <div className="detail-row">

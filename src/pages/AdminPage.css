@@ -516,6 +516,69 @@
   font-family: 'Fira Code', 'SF Mono', 'Monaco', monospace;
 }
 
+/* Google Maps import */
+.gm-import-form {
+  margin-top: 0.5rem;
+}
+
+.gm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.gm-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+
+.gm-field input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.gm-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-opacity-10);
+}
+
+.gm-actions {
+  margin-top: 1rem;
+}
+
+.gm-status {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.86rem;
+  border: 1px solid transparent;
+}
+
+.gm-error {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+.gm-success {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admin-stats-row {
@@ -540,5 +603,9 @@
 
   .api-fields-table table {
     min-width: 500px;
+  }
+
+  .gm-grid {
+    grid-template-columns: 1fr;
   }
 }

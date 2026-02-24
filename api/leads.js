@@ -24,8 +24,61 @@ function getSupabaseAdmin() {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
   'Access-Control-Max-Age': '86400',
+}
+
+function parseMaybeJson(input) {
+  if (!input) return {}
+  if (typeof input === 'string') {
+    try {
+      return JSON.parse(input)
+    } catch {
+      return {}
+    }
+  }
+  return input
+}
+
+function valueFromAliases(body, aliases) {
+  for (const key of aliases) {
+    const val = body?.[key]
+    if (val !== undefined && val !== null && String(val).trim() !== '') {
+      return String(val).trim()
+    }
+  }
+  return ''
+}
+
+function parseNumberMaybe(input) {
+  if (input === '' || input === undefined || input === null) return null
+  const n = Number(input)
+  return Number.isFinite(n) ? n : null
+}
+
+function normalizeWebsite(url) {
+  const clean = (url || '').trim()
+  if (!clean) return ''
+  if (/^https?:\/\//i.test(clean)) return clean
+  return `https://${clean}`
+}
+
+function extractBusinessFieldsFromNotes(rawNotes) {
+  const notes = (rawNotes || '').trim()
+  if (!notes) {
+    return { address: '', website: '', rating: null, reviews: null }
+  }
+  const addressMatch = notes.match(/(?:^|\n)\s*Address:\s*(.+)/i)
+  const websiteMatch = notes.match(/(?:^|\n)\s*Website:\s*(.+)/i)
+  const ratingMatch = notes.match(/(?:^|\n)\s*Rating:\s*([0-9]+(?:\.[0-9]+)?)/i)
+  const reviewsMatch = notes.match(/(?:^|\n)\s*Reviews:\s*([0-9]+)/i)
+
+  return {
+    address: addressMatch?.[1]?.trim() || '',
+    website: websiteMatch?.[1]?.trim() || '',
+    rating: ratingMatch?.[1] ? Number(ratingMatch[1]) : null,
+    reviews: reviewsMatch?.[1] ? Number(reviewsMatch[1]) : null,
+  }
 }
 
 export default async function handler(req, res) {
@@ -64,12 +117,17 @@ export default async function handler(req, res) {
   }
 
   // ── Parse & validate body ──
-  const body = req.body || {}
+  const body = parseMaybeJson(req.body)
   const {
     name,
     full_name,
     email,
     phone,
+    business_address,
+    website,
+    map_url,
+    google_rating,
+    google_reviews,
     services,
     notes,
     source_detail,  // optional: e.g. "Contact form on example.com"
@@ -78,6 +136,28 @@ export default async function handler(req, res) {
   const leadName = (name || full_name || '').trim()
   const leadEmail = (email || '').trim()
   const leadPhone = (phone || '').trim()
+  const notesExtracted = extractBusinessFieldsFromNotes(notes)
+  const leadAddress =
+    valueFromAliases(body, ['business_address', 'address', 'business_addr']) ||
+    notesExtracted.address
+  const leadWebsiteRaw =
+    valueFromAliases(body, ['website', 'web', 'site']) || notesExtracted.website
+  const leadWebsite = normalizeWebsite(leadWebsiteRaw)
+  const leadMapUrl = valueFromAliases(body, ['map_url', 'google_maps_url', 'maps_url'])
+  const leadRating =
+    parseNumberMaybe(
+      google_rating ??
+      body.rating ??
+      body.stars ??
+      notesExtracted.rating
+    )
+  const leadReviews =
+    parseNumberMaybe(
+      google_reviews ??
+      body.reviews ??
+      body.review_count ??
+      notesExtracted.reviews
+    )
 
   if (!leadName) {
     return res.status(400).json({
@@ -101,6 +181,26 @@ export default async function handler(req, res) {
     })
   }
 
+  if (
+    leadRating !== null &&
+    (!Number.isFinite(leadRating) || leadRating < 0 || leadRating > 5)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'google_rating must be a number between 0 and 5.',
+    })
+  }
+
+  if (
+    leadReviews !== null &&
+    (!Number.isFinite(leadReviews) || leadReviews < 0)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'google_reviews must be a non-negative number.',
+    })
+  }
+
   // ── Insert into Supabase ──
   try {
     const supabase = getSupabaseAdmin()
@@ -118,6 +218,11 @@ export default async function handler(req, res) {
         full_name: leadName,
         email: leadEmail || null,
         phone: leadPhone || null,
+        business_address: leadAddress || null,
+        website: leadWebsite || null,
+        map_url: leadMapUrl || null,
+        google_rating: leadRating,
+        google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
         services: (services || '').trim() || null,
         notes: (notes || '').trim() || null,
         source: 'Website API',
@@ -157,6 +262,10 @@ export default async function handler(req, res) {
         name: data.full_name,
         email: data.email,
         status: data.status,
+        business_address: leadAddress || null,
+        website: leadWebsite || null,
+        google_rating: leadRating,
+        google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
         created_at: data.created_at,
       },
     })

@@ -104,6 +104,11 @@ create table if not exists public.leads (
   full_name text not null,
   email text,
   phone text,
+  business_address text,
+  website text,
+  map_url text,
+  google_rating numeric(3,2),
+  google_reviews integer,
   company_id uuid references public.companies(id) on delete set null,
   source text,
   status text default 'New',
@@ -401,6 +406,11 @@ alter table public.leads add column if not exists services text;
 alter table public.leads add column if not exists user_ip text;
 alter table public.leads add column if not exists notes text;
 alter table public.leads add column if not exists tag text;
+alter table public.leads add column if not exists business_address text;
+alter table public.leads add column if not exists website text;
+alter table public.leads add column if not exists map_url text;
+alter table public.leads add column if not exists google_rating numeric(3,2);
+alter table public.leads add column if not exists google_reviews integer;
 
 -- Update default status for new leads
 alter table public.leads alter column status set default 'New Lead';
@@ -420,6 +430,8 @@ alter publication supabase_realtime add table public.leads;
 --
 -- Required Vercel Environment Variables:
 --   VITE_SUPABASE_URL          (same as frontend)
+--   VITE_SUPABASE_ANON_KEY     (for server-side token verification)
 --   SUPABASE_SERVICE_ROLE_KEY  (from Supabase → Settings → API)
 --   CRM_API_KEY                (any strong secret string)
+--   GOOGLE_MAPS_API_KEY        (for /api/google-businesses import)
 -- ══════════════════════════════════════════════════════════════

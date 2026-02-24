@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient'
 export const PIPELINE_STAGES = ['New Lead', 'Contacted', 'Interested', 'Proposal', 'Closed']
 
 // Lead sources
-export const LEAD_SOURCES = ['Manual', 'Web Form', 'CSV Import', 'Website API', 'Referral', 'Social Media', 'Cold Call', 'Other']
+export const LEAD_SOURCES = ['Manual', 'Web Form', 'CSV Import', 'Website API', 'Google Maps', 'Referral', 'Social Media', 'Cold Call', 'Other']
 
 // Smart tags
 export const LEAD_TAGS = ['Hot', 'Needs Follow-up', 'High Value']
@@ -43,6 +43,11 @@ export async function createLead(payload) {
       full_name: payload.full_name,
       email: payload.email || null,
       phone: payload.phone || null,
+      business_address: payload.business_address || null,
+      website: payload.website || null,
+      map_url: payload.map_url || null,
+      google_rating: payload.google_rating ?? null,
+      google_reviews: payload.google_reviews ?? null,
       source: payload.source || 'Manual',
       status: payload.status || 'New Lead',
       services: payload.services || null,

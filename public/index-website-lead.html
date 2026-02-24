@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Website Lead Form</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f7fb;
+      color: #1f2937;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      padding: 22px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      color: #0f172a;
+    }
+
+    .sub {
+      margin: 0 0 18px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    input, textarea {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 11px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, textarea:focus {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+    }
+
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+
+    .btn {
+      margin-top: 14px;
+      width: 100%;
+      border: none;
+      border-radius: 9px;
+      padding: 11px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #0284c7;
+      color: #fff;
+    }
+
+    .btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .msg {
+      margin-top: 12px;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .msg.ok {
+      display: block;
+      border: 1px solid #86efac;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .msg.err {
+      display: block;
+      border: 1px solid #fca5a5;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    @media (max-width: 640px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Website Lead Form</h1>
+    <p class="sub">Fill this form to send a lead directly into your CRM.</p>
+
+    <form id="leadForm">
+      <div class="grid">
+        <div class="field">
+          <label for="name">Name *</label>
+          <input id="name" name="name" required placeholder="Business or contact name" />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="owner@company.com" />
+        </div>
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" placeholder="+64..." />
+        </div>
+        <div class="field">
+          <label for="website">Website</label>
+          <input id="website" name="website" placeholder="https://example.com" />
+        </div>
+        <div class="field full">
+          <label for="address">Address</label>
+          <input id="address" name="address" placeholder="Street, City, Country" />
+        </div>
+        <div class="field">
+          <label for="rating">Rating</label>
+          <input id="rating" name="rating" type="number" step="0.1" min="0" max="5" placeholder="4.5" />
+        </div>
+        <div class="field">
+          <label for="reviews">Reviews</label>
+          <input id="reviews" name="reviews" type="number" min="0" step="1" placeholder="125" />
+        </div>
+        <div class="field full">
+          <label for="services">Services Needed</label>
+          <input id="services" name="services" placeholder="Web design, SEO, Ads..." />
+        </div>
+        <div class="field full">
+          <label for="notes">Notes</label>
+          <textarea id="notes" name="notes" placeholder="Any additional details..."></textarea>
+        </div>
+      </div>
+      <button id="submitBtn" class="btn" type="submit">Submit Lead</button>
+      <div id="msg" class="msg"></div>
+    </form>
+  </div>
+
+  <script>
+    // Replace if your deployed URL differs:
+    const CRM_API_URL = 'https://crm-leads-beige.vercel.app/api/leads'
+    // IMPORTANT: set your real key here before using this form
+    const CRM_API_KEY = 'sk_test_1234567890abcdef'
+
+    function showMessage(type, text) {
+      const el = document.getElementById('msg')
+      el.className = `msg ${type}`
+      el.textContent = text
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault()
+      const btn = document.getElementById('submitBtn')
+      const form = document.getElementById('leadForm')
+      const formData = new FormData(form)
+
+      const name = (formData.get('name') || '').trim()
+      const email = (formData.get('email') || '').trim()
+      const phone = (formData.get('phone') || '').trim()
+
+      if (!name) {
+        showMessage('err', 'Name is required.')
+        return
+      }
+      if (!email && !phone) {
+        showMessage('err', 'Provide at least email or phone.')
+        return
+      }
+
+      const payload = {
+        name,
+        email,
+        phone,
+        business_address: (formData.get('address') || '').trim(),
+        address: (formData.get('address') || '').trim(), // alias for backward compatibility
+        website: (formData.get('website') || '').trim(),
+        google_rating: (formData.get('rating') || '').trim(),
+        rating: (formData.get('rating') || '').trim(),   // alias for backward compatibility
+        google_reviews: (formData.get('reviews') || '').trim(),
+        reviews: (formData.get('reviews') || '').trim(), // alias for backward compatibility
+        services: (formData.get('services') || '').trim(),
+        notes: (formData.get('notes') || '').trim(),
+        source_detail: window.location.hostname || 'website-form',
+      }
+
+      btn.disabled = true
+      btn.textContent = 'Submitting...'
+      showMessage('ok', '')
+      document.getElementById('msg').style.display = 'none'
+
+      try {
+        const response = await fetch(CRM_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CRM_API_KEY,
+          },
+          body: JSON.stringify(payload),
+        })
+        const result = await response.json()
+
+        if (response.ok && result.success) {
+          form.reset()
+          showMessage('ok', 'Lead submitted successfully.')
+        } else {
+          showMessage('err', result.error || 'Failed to submit lead.')
+        }
+      } catch (err) {
+        showMessage('err', 'Network/CORS error. Open this page via a web server and verify API URL/key.')
+      } finally {
+        btn.disabled = false
+        btn.textContent = 'Submit Lead'
+      }
+    }
+
+    document.getElementById('leadForm').addEventListener('submit', handleSubmit)
+  </script>
+</body>
+</html>

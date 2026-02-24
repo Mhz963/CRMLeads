@@ -240,6 +240,30 @@
   color: var(--text-muted);
 }
 
+.business-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 240px;
+}
+
+.business-cell a {
+  color: var(--primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.business-cell a:hover {
+  text-decoration: underline;
+}
+
+.business-rating {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
 .status-pill {
   display: inline-block;
   padding: 0.2rem 0.6rem;

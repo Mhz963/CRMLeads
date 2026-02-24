@@ -262,6 +262,15 @@
   flex-shrink: 0;
 }
 
+.detail-row a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.detail-row a:hover {
+  text-decoration: underline;
+}
+
 .lead-notes-box {
   margin-top: 1rem;
   padding: 0.75rem;
