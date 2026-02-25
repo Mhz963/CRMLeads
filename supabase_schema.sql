@@ -185,6 +185,31 @@ create table if not exists public.email_templates (
 );
 
 -- ──────────────────────────────────────────────────────
+-- GBM BUSINESSES (Google Business data cache/store)
+-- ──────────────────────────────────────────────────────
+
+create table if not exists public.gbm_businesses (
+  id uuid primary key default gen_random_uuid(),
+  place_id text not null unique,
+  name text not null,
+  formatted_address text,
+  contact_no text,
+  email text,
+  website text,
+  rating numeric(3,2),
+  reviews integer,
+  business_status text,
+  maps_url text,
+  types jsonb default '[]'::jsonb,
+  first_query text,
+  last_query text,
+  first_seen_at timestamptz default now(),
+  last_seen_at timestamptz default now(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- ──────────────────────────────────────────────────────
 -- INDEXES
 -- ──────────────────────────────────────────────────────
 
@@ -192,6 +217,8 @@ create index if not exists leads_status_idx on public.leads(status);
 create index if not exists leads_assigned_to_idx on public.leads(assigned_to);
 create index if not exists leads_created_by_idx on public.leads(created_by);
 create index if not exists tasks_assigned_to_idx on public.tasks(assigned_to);
+create index if not exists gbm_businesses_last_seen_idx on public.gbm_businesses(last_seen_at desc);
+create index if not exists gbm_businesses_last_query_idx on public.gbm_businesses(last_query);
 
 -- ════════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY
@@ -204,6 +231,7 @@ alter table public.deals enable row level security;
 alter table public.activities enable row level security;
 alter table public.tasks enable row level security;
 alter table public.email_templates enable row level security;
+alter table public.gbm_businesses enable row level security;
 
 -- ─────────── Helper: is current user an admin? ───────────
 -- (used in policies below via sub-select)
@@ -395,6 +423,13 @@ create policy "email_templates_owner_update"
   on public.email_templates for update
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid());
+
+-- ══════════════  GBM BUSINESSES  ══════════════
+
+drop policy if exists "gbm_businesses_select_auth" on public.gbm_businesses;
+create policy "gbm_businesses_select_auth"
+  on public.gbm_businesses for select
+  using (auth.uid() is not null);
 
 -- ══════════════════════════════════════════════════════════════
 -- MIGRATION: Add new columns for Demo CRM (NZ Business Clients)

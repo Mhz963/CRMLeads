@@ -241,6 +241,16 @@ const GBMPage = () => {
           Avg Rating:{' '}
           <strong>{avgRating ?? 'N/A'}</strong>
         </span>
+        {typeof data?.inserted_count === 'number' && (
+          <span>
+            New saved: <strong>{data.inserted_count}</strong>
+          </span>
+        )}
+        {typeof data?.updated_count === 'number' && (
+          <span>
+            Existing refreshed: <strong>{data.updated_count}</strong>
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -260,6 +270,7 @@ const GBMPage = () => {
                 <th>Business Name</th>
                 <th>Address</th>
                 <th>Contact No.</th>
+                <th>Email</th>
                 <th>Website</th>
                 <th>Rating</th>
                 <th>Reviews</th>
@@ -269,13 +280,14 @@ const GBMPage = () => {
             </thead>
             <tbody>
               {businesses.length === 0 ? (
-                <tr><td colSpan="8" className="gbm-empty">No results found.</td></tr>
+                <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
               ) : (
                 businesses.map((biz) => (
                   <tr key={biz.place_id || `${biz.name}-${biz.address}`}>
                     <td className="biz-name">{biz.name}</td>
                     <td className="biz-address">{biz.address || '—'}</td>
                     <td>{biz.contact_no || '—'}</td>
+                    <td>—</td>
                     <td className="biz-website">
                       {biz.website ? (
                         <a href={biz.website} target="_blank" rel="noopener noreferrer">

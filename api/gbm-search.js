@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY
 
 const corsHeaders = {
@@ -16,6 +17,15 @@ function getSupabasePublic() {
     throw new Error('Missing Supabase public config')
   }
   return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+function getSupabaseAdmin() {
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase admin config')
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }
@@ -144,10 +154,65 @@ export default async function handler(req, res) {
       })
     )
 
+    // Persist query results into GBM table without duplicates (unique place_id).
+    const supabaseAdmin = getSupabaseAdmin()
+    const placeIds = enriched.map((b) => b.place_id).filter(Boolean)
+    let inserted_count = 0
+    let updated_count = 0
+    if (placeIds.length) {
+      const { data: existingRows, error: existingErr } = await supabaseAdmin
+        .from('gbm_businesses')
+        .select('place_id')
+        .in('place_id', placeIds)
+
+      if (existingErr) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to read existing GBM rows.',
+        })
+      }
+
+      const existingSet = new Set((existingRows || []).map((r) => r.place_id))
+      inserted_count = placeIds.filter((id) => !existingSet.has(id)).length
+      updated_count = placeIds.filter((id) => existingSet.has(id)).length
+
+      const nowIso = new Date().toISOString()
+      const upsertRows = enriched.map((b) => ({
+        place_id: b.place_id,
+        name: b.name,
+        formatted_address: b.address || null,
+        contact_no: b.contact_no || null,
+        email: null,
+        website: b.website || null,
+        rating: b.rating,
+        reviews: b.reviews,
+        business_status: b.business_status || null,
+        maps_url: b.maps_url || null,
+        types: b.types || [],
+        first_query: query,
+        last_query: query,
+        last_seen_at: nowIso,
+        updated_at: nowIso,
+      }))
+
+      const { error: upsertErr } = await supabaseAdmin
+        .from('gbm_businesses')
+        .upsert(upsertRows, { onConflict: 'place_id' })
+
+      if (upsertErr) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to persist GBM rows.',
+        })
+      }
+    }
+
     return res.status(200).json({
       success: true,
       query,
       total: enriched.length,
+      inserted_count,
+      updated_count,
       next_page_token: mapsData.next_page_token || null,
       businesses: enriched,
     })
