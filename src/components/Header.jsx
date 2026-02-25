@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   KanbanSquare,
+  MapPinned,
   ClipboardList,
   Shield,
   LogOut,
@@ -57,6 +58,13 @@ const Header = ({ user, userProfile }) => {
           >
             <KanbanSquare className="nav-icon" />
             Pipeline
+          </NavLink>
+          <NavLink
+            to="/gbm"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            <MapPinned className="nav-icon" />
+            GBM
           </NavLink>
           <NavLink
             to="/tasks"

@@ -223,8 +223,13 @@
           },
           body: JSON.stringify(payload),
         });
-
-        const result = await response.json();
+        const raw = await response.text();
+        let result = {};
+        try {
+          result = raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          result = {};
+        }
 
         if (response.ok && result.success) {
           msg.className = 'form-message success';
@@ -233,7 +238,7 @@
           form.reset();
         } else {
           msg.className = 'form-message error';
-          msg.textContent = result.error || 'Something went wrong. Please try again.';
+          msg.textContent = result.error || `Something went wrong (HTTP ${response.status}). Please try again.`;
           msg.style.display = 'block';
         }
       } catch (err) {

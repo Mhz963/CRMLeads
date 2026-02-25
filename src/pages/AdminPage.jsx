@@ -118,7 +118,13 @@ const AdminPage = ({ currentUser, userProfile }) => {
         }),
       })
 
-      const payload = await response.json()
+      const raw = await response.text()
+      let payload = {}
+      try {
+        payload = raw ? JSON.parse(raw) : {}
+      } catch {
+        payload = {}
+      }
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Google import failed.')
       }

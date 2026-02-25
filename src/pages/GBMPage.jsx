@@ -1,0 +1,244 @@
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink } from 'lucide-react'
+import { supabase } from '../services/supabaseClient'
+import './GBMPage.css'
+
+function mapGooglePlace(place) {
+  return {
+    place_id: place.place_id || null,
+    name: place.name || 'Unknown',
+    address: place.formatted_address || '',
+    rating: typeof place.rating === 'number' ? place.rating : null,
+    reviews: Number.isFinite(place.user_ratings_total) ? place.user_ratings_total : 0,
+    business_status: place.business_status || '',
+    open_now: typeof place?.opening_hours?.open_now === 'boolean'
+      ? place.opening_hours.open_now
+      : null,
+    maps_url: place.place_id
+      ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
+      : null,
+    types: Array.isArray(place.types) ? place.types : [],
+  }
+}
+
+async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
+  // Fallback only if server endpoint is not deployed yet.
+  // In localhost dev, use Vite proxy to avoid browser CORS.
+  const googleKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  if (!googleKey) {
+    throw new Error(
+      'Missing VITE_GOOGLE_MAPS_API_KEY in local .env. Add it and restart npm run dev.'
+    )
+  }
+
+  const isLocalhost =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  const baseUrl = isLocalhost
+    ? `${window.location.origin}/__gbm_proxy/textsearch`
+    : 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+
+  const url = new URL(baseUrl)
+  url.searchParams.set('query', query)
+  url.searchParams.set('region', region)
+  url.searchParams.set('key', googleKey)
+
+  const response = await fetch(url.toString())
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || (payload.status !== 'OK' && payload.status !== 'ZERO_RESULTS')) {
+    throw new Error(payload.error_message || payload.status || `Google API failed (HTTP ${response.status}).`)
+  }
+
+  const businesses = (payload.results || [])
+    .slice(0, maxResults)
+    .map(mapGooglePlace)
+
+  return {
+    success: true,
+    query,
+    total: businesses.length,
+    next_page_token: payload.next_page_token || null,
+    businesses,
+  }
+}
+
+async function fetchGBMResults({ query, region, maxResults }) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw new Error('Please sign in again to use GBM search.')
+
+  const response = await fetch('/api/gbm-search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      query,
+      region,
+      max_results: maxResults,
+    }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  // If endpoint is not yet deployed (404/405), fallback to direct Google fetch.
+  if (response.status === 404 || response.status === 405) {
+    // In production domain this direct fallback can still be blocked by CORS.
+    // We keep it primarily for localhost dev via Vite proxy.
+    return fetchGBMDirectFromGoogle({ query, region, maxResults })
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || `Failed to fetch GBM data (HTTP ${response.status}).`)
+  }
+  return payload
+}
+
+const GBMPage = () => {
+  const [query, setQuery] = useState('plumber in Auckland New Zealand')
+  const [region, setRegion] = useState('nz')
+  const [maxResults, setMaxResults] = useState(20)
+  const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ['gbm-search', submittedQuery, region, maxResults],
+    queryFn: () => fetchGBMResults({ query: submittedQuery, region, maxResults }),
+  })
+
+  const businesses = data?.businesses || []
+  const avgRating = useMemo(() => {
+    const rated = businesses.filter((b) => typeof b.rating === 'number')
+    if (!rated.length) return null
+    return (rated.reduce((sum, b) => sum + b.rating, 0) / rated.length).toFixed(2)
+  }, [businesses])
+
+  const onSearch = (e) => {
+    e.preventDefault()
+    setSubmittedQuery(query.trim() || 'plumber in Auckland New Zealand')
+  }
+
+  return (
+    <div className="gbm-page animate-fade-in">
+      <div className="gbm-header">
+        <div>
+          <h2><MapPinned size={22} /> GBM Leads</h2>
+          <p>Google Business data fetched by query and displayed inside your CRM.</p>
+        </div>
+        <button className="btn-outline" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCcw size={15} className={isFetching ? 'spinning' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      <form className="gbm-search-bar" onSubmit={onSearch}>
+        <div className="gbm-field grow">
+          <label>Query</label>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="plumber in Auckland New Zealand"
+          />
+        </div>
+        <div className="gbm-field small">
+          <label>Region</label>
+          <input value={region} onChange={(e) => setRegion(e.target.value)} maxLength={5} />
+        </div>
+        <div className="gbm-field small">
+          <label>Max</label>
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={maxResults}
+            onChange={(e) => setMaxResults(Number(e.target.value || 20))}
+          />
+        </div>
+        <button className="btn-primary-action" type="submit">
+          <Search size={16} />
+          Search
+        </button>
+      </form>
+
+      <div className="gbm-stats">
+        <span><strong>{businesses.length}</strong> businesses</span>
+        <span><strong>{submittedQuery}</strong></span>
+        <span>
+          Avg Rating:{' '}
+          <strong>{avgRating ?? 'N/A'}</strong>
+        </span>
+      </div>
+
+      {isLoading ? (
+        <div className="gbm-loading">
+          <Loader2 size={26} className="spinning" />
+          <span>Loading GBM data...</span>
+        </div>
+      ) : isError ? (
+        <div className="gbm-error">
+          <span>{error?.message || 'Failed to fetch GBM businesses.'}</span>
+        </div>
+      ) : (
+        <div className="gbm-table-wrap">
+          <table className="gbm-table">
+            <thead>
+              <tr>
+                <th>Business Name</th>
+                <th>Address</th>
+                <th>Rating</th>
+                <th>Reviews</th>
+                <th>Status</th>
+                <th>Map</th>
+              </tr>
+            </thead>
+            <tbody>
+              {businesses.length === 0 ? (
+                <tr><td colSpan="6" className="gbm-empty">No results found.</td></tr>
+              ) : (
+                businesses.map((biz) => (
+                  <tr key={biz.place_id || `${biz.name}-${biz.address}`}>
+                    <td className="biz-name">{biz.name}</td>
+                    <td className="biz-address">{biz.address || '—'}</td>
+                    <td>
+                      {typeof biz.rating === 'number' ? (
+                        <span className="rating-pill">
+                          <Star size={12} />
+                          {biz.rating}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td>{biz.reviews ?? 0}</td>
+                    <td>{biz.business_status || '—'}</td>
+                    <td>
+                      {biz.maps_url ? (
+                        <a href={biz.maps_url} target="_blank" rel="noopener noreferrer" className="map-link">
+                          Open <ExternalLink size={12} />
+                        </a>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default GBMPage

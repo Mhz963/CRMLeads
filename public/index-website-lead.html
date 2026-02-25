@@ -233,13 +233,19 @@
           },
           body: JSON.stringify(payload),
         })
-        const result = await response.json()
+        const raw = await response.text()
+        let result = {}
+        try {
+          result = raw ? JSON.parse(raw) : {}
+        } catch (_) {
+          result = {}
+        }
 
         if (response.ok && result.success) {
           form.reset()
           showMessage('ok', 'Lead submitted successfully.')
         } else {
-          showMessage('err', result.error || 'Failed to submit lead.')
+          showMessage('err', result.error || `Failed to submit lead (HTTP ${response.status}).`)
         }
       } catch (err) {
         showMessage('err', 'Network/CORS error. Open this page via a web server and verify API URL/key.')

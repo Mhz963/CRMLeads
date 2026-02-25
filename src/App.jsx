@@ -7,6 +7,7 @@ import LeadsPage from './pages/LeadsPage'
 import TasksPage from './pages/TasksPage'
 import DashboardPage from './pages/DashboardPage'
 import PipelinePage from './pages/PipelinePage'
+import GBMPage from './pages/GBMPage'
 import LeadProfilePage from './pages/LeadProfilePage'
 import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
@@ -148,6 +149,10 @@ function App() {
             <Route
               path="/pipeline"
               element={isLoggedIn ? <PipelinePage /> : <Navigate to="/signin" replace />}
+            />
+            <Route
+              path="/gbm"
+              element={isLoggedIn ? <GBMPage /> : <Navigate to="/signin" replace />}
             />
             <Route
               path="/tasks"
