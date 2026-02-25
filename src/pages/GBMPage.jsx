@@ -170,17 +170,71 @@ async function fetchGBMResults({ query, region, maxResults }) {
 }
 
 const GBMPage = () => {
+  const [mode, setMode] = useState('new') // new | list
   const [query, setQuery] = useState('plumber in Auckland New Zealand')
-  const [region, setRegion] = useState('nz')
-  const [maxResults, setMaxResults] = useState(20)
   const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
+  const [entriesPerPage, setEntriesPerPage] = useState(20)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  async function fetchGBMListFromDb() {
+    const { data, error: dbErr } = await supabase
+      .from('gbm_businesses')
+      .select(`
+        place_id,
+        name,
+        formatted_address,
+        contact_no,
+        email,
+        website,
+        rating,
+        reviews,
+        business_status,
+        maps_url,
+        types,
+        last_query
+      `)
+      .order('last_seen_at', { ascending: false })
+
+    if (dbErr) {
+      throw new Error(dbErr.message || 'Failed to fetch GBM list from database.')
+    }
+
+    const businesses = (data || []).map((row) => ({
+      place_id: row.place_id,
+      name: row.name || 'Unknown',
+      address: row.formatted_address || '',
+      contact_no: row.contact_no || null,
+      email: row.email || null,
+      website: row.website || null,
+      rating: row.rating,
+      reviews: row.reviews ?? 0,
+      business_status: row.business_status || '',
+      maps_url: row.maps_url || null,
+      types: Array.isArray(row.types) ? row.types : [],
+    }))
+
+    return {
+      success: true,
+      query: (data?.[0]?.last_query || '').trim(),
+      total: businesses.length,
+      businesses,
+    }
+  }
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['gbm-search', submittedQuery, region, maxResults],
-    queryFn: () => fetchGBMResults({ query: submittedQuery, region, maxResults }),
+    queryKey: ['gbm-data', mode, submittedQuery],
+    queryFn: () => (
+      mode === 'new'
+        ? fetchGBMResults({ query: submittedQuery, region: 'nz', maxResults: 60 })
+        : fetchGBMListFromDb()
+    ),
   })
 
   const businesses = data?.businesses || []
+  const totalPages = Math.max(1, Math.ceil(businesses.length / entriesPerPage))
+  const pageStart = (currentPage - 1) * entriesPerPage
+  const paginatedBusinesses = businesses.slice(pageStart, pageStart + entriesPerPage)
+
   const avgRating = useMemo(() => {
     const rated = businesses.filter((b) => typeof b.rating === 'number')
     if (!rated.length) return null
@@ -190,6 +244,7 @@ const GBMPage = () => {
   const onSearch = (e) => {
     e.preventDefault()
     setSubmittedQuery(query.trim() || 'plumber in Auckland New Zealand')
+    setCurrentPage(1)
   }
 
   return (
@@ -197,46 +252,84 @@ const GBMPage = () => {
       <div className="gbm-header">
         <div>
           <h2><MapPinned size={22} /> GBM Leads</h2>
-          <p>Google Business data fetched by query and displayed inside your CRM.</p>
+          <p>
+            {mode === 'new'
+              ? 'Google Business data fetched by query and displayed inside your CRM.'
+              : 'Saved GBM entries loaded from your Supabase database.'}
+          </p>
         </div>
-        <button className="btn-outline" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCcw size={15} className={isFetching ? 'spinning' : ''} />
-          Refresh
-        </button>
+        <div className="gbm-header-actions">
+          <div className="gbm-field small">
+            <label>View</label>
+            <select
+              value={mode}
+              onChange={(e) => {
+                setMode(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="new">New</option>
+              <option value="list">List</option>
+            </select>
+          </div>
+          <button className="btn-outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCcw size={15} className={isFetching ? 'spinning' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
-      <form className="gbm-search-bar" onSubmit={onSearch}>
-        <div className="gbm-field grow">
-          <label>Query</label>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="plumber in Auckland New Zealand"
-          />
+      {mode === 'new' ? (
+        <form className="gbm-search-bar" onSubmit={onSearch}>
+          <div className="gbm-field grow">
+            <label>Query</label>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="plumber in Auckland New Zealand"
+            />
+          </div>
+          <div className="gbm-field small">
+            <label>Entries per page</label>
+            <select
+              value={entriesPerPage}
+              onChange={(e) => {
+                setEntriesPerPage(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+          <button className="btn-primary-action" type="submit">
+            <Search size={16} />
+            Search
+          </button>
+        </form>
+      ) : (
+        <div className="gbm-search-bar">
+          <div className="gbm-field small">
+            <label>Entries per page</label>
+            <select
+              value={entriesPerPage}
+              onChange={(e) => {
+                setEntriesPerPage(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
-        <div className="gbm-field small">
-          <label>Region</label>
-          <input value={region} onChange={(e) => setRegion(e.target.value)} maxLength={5} />
-        </div>
-        <div className="gbm-field small">
-          <label>Max</label>
-          <input
-            type="number"
-            min={1}
-            max={60}
-            value={maxResults}
-            onChange={(e) => setMaxResults(Number(e.target.value || 20))}
-          />
-        </div>
-        <button className="btn-primary-action" type="submit">
-          <Search size={16} />
-          Search
-        </button>
-      </form>
+      )}
 
       <div className="gbm-stats">
         <span><strong>{businesses.length}</strong> businesses</span>
-        <span><strong>{submittedQuery}</strong></span>
+        <span><strong>{mode === 'new' ? submittedQuery : 'Database List'}</strong></span>
         <span>
           Avg Rating:{' '}
           <strong>{avgRating ?? 'N/A'}</strong>
@@ -282,12 +375,12 @@ const GBMPage = () => {
               {businesses.length === 0 ? (
                 <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
               ) : (
-                businesses.map((biz) => (
+                paginatedBusinesses.map((biz) => (
                   <tr key={biz.place_id || `${biz.name}-${biz.address}`}>
                     <td className="biz-name">{biz.name}</td>
                     <td className="biz-address">{biz.address || '—'}</td>
                     <td>{biz.contact_no || '—'}</td>
-                    <td>—</td>
+                    <td>{biz.email || '—'}</td>
                     <td className="biz-website">
                       {biz.website ? (
                         <a href={biz.website} target="_blank" rel="noopener noreferrer">
@@ -317,6 +410,30 @@ const GBMPage = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {businesses.length > 0 && (
+        <div className="gbm-pagination">
+          <button
+            className="btn-outline"
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </button>
+          <span>
+            Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+          </span>
+          <button
+            className="btn-outline"
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

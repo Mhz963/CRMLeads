@@ -12,6 +12,12 @@
   flex-wrap: wrap;
 }
 
+.gbm-header-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
 .gbm-header h2 {
   display: flex;
   align-items: center;
@@ -66,7 +72,23 @@
   font-family: inherit;
 }
 
+.gbm-field select {
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 0.52rem 0.64rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
 .gbm-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-opacity-10);
+}
+
+.gbm-field select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-opacity-10);
@@ -179,4 +201,16 @@
 
 .gbm-error {
   color: var(--error);
+}
+
+.gbm-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.gbm-pagination span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
 }
