@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, GripVertical, Mail, Phone } from 'lucide-react'
+import { Loader2, GripVertical, Mail, Phone, ChevronLeft, ChevronRight } from 'lucide-react'
 import { fetchLeads, moveLeadStage, PIPELINE_STAGES } from '../services/leadsService'
 import { createActivity } from '../services/activitiesService'
 import './PipelinePage.css'
@@ -67,18 +67,22 @@ const PipelinePage = () => {
       return
     }
 
+    await handleMoveLead(lead, stage)
+    setDraggedLeadId(null)
+  }
+
+  const handleMoveLead = async (lead, stage) => {
     try {
-      await moveMutation.mutateAsync({ id: leadId, newStatus: stage })
+      await moveMutation.mutateAsync({ id: lead.id, newStatus: stage })
       // Log status change activity
       await createActivity({
-        lead_id: leadId,
+        lead_id: lead.id,
         type: 'status_change',
         notes: `Status changed from "${lead.status}" to "${stage}"`,
       })
     } catch (err) {
       console.error('Failed to move lead', err)
     }
-    setDraggedLeadId(null)
   }
 
   const handleDragEnd = () => {
@@ -183,6 +187,39 @@ const PipelinePage = () => {
                         {lead.source && (
                           <span className="card-source">{lead.source}</span>
                         )}
+                      </div>
+
+                      <div className="card-move-actions" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const currentIndex = PIPELINE_STAGES.indexOf(lead.status)
+                          const prevStage = currentIndex > 0 ? PIPELINE_STAGES[currentIndex - 1] : null
+                          const nextStage = currentIndex >= 0 && currentIndex < PIPELINE_STAGES.length - 1
+                            ? PIPELINE_STAGES[currentIndex + 1]
+                            : null
+
+                          return (
+                            <>
+                              <button
+                                className="move-btn"
+                                disabled={!prevStage || moveMutation.isPending}
+                                onClick={() => prevStage && handleMoveLead(lead, prevStage)}
+                                title={prevStage ? `Move to ${prevStage}` : 'No previous stage'}
+                              >
+                                <ChevronLeft size={13} />
+                                Prev
+                              </button>
+                              <button
+                                className="move-btn"
+                                disabled={!nextStage || moveMutation.isPending}
+                                onClick={() => nextStage && handleMoveLead(lead, nextStage)}
+                                title={nextStage ? `Move to ${nextStage}` : 'No next stage'}
+                              >
+                                Next
+                                <ChevronRight size={13} />
+                              </button>
+                            </>
+                          )
+                        })()}
                       </div>
                     </div>
                   ))

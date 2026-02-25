@@ -246,7 +246,7 @@ create policy "leads_admin_delete"
 drop policy if exists "leads_member_select" on public.leads;
 create policy "leads_member_select"
   on public.leads for select
-  using (created_by = auth.uid() or assigned_to = auth.uid());
+  using (auth.uid() is not null);
 
 drop policy if exists "leads_member_insert" on public.leads;
 create policy "leads_member_insert"
@@ -256,8 +256,8 @@ create policy "leads_member_insert"
 drop policy if exists "leads_member_update" on public.leads;
 create policy "leads_member_update"
   on public.leads for update
-  using (created_by = auth.uid() or assigned_to = auth.uid())
-  with check (created_by = auth.uid() or assigned_to = auth.uid());
+  using (auth.uid() is not null)
+  with check (auth.uid() is not null);
 
 drop policy if exists "leads_member_delete" on public.leads;
 create policy "leads_member_delete"

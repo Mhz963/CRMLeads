@@ -15,11 +15,53 @@ function mapGooglePlace(place) {
     open_now: typeof place?.opening_hours?.open_now === 'boolean'
       ? place.opening_hours.open_now
       : null,
+    contact_no:
+      place.international_phone_number ||
+      place.formatted_phone_number ||
+      null,
+    website: place.website || null,
     maps_url: place.place_id
       ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
       : null,
     types: Array.isArray(place.types) ? place.types : [],
   }
+}
+
+async function fetchPlaceDetailsClient({ placeId, googleKey }) {
+  if (!placeId) return null
+  const isLocalhost =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  const baseUrl = isLocalhost
+    ? `${window.location.origin}/__gbm_proxy/details`
+    : 'https://maps.googleapis.com/maps/api/place/details/json'
+
+  const url = new URL(baseUrl)
+  url.searchParams.set('place_id', placeId)
+  url.searchParams.set(
+    'fields',
+    [
+      'name',
+      'formatted_address',
+      'website',
+      'formatted_phone_number',
+      'international_phone_number',
+      'url',
+    ].join(',')
+  )
+  url.searchParams.set('key', googleKey)
+
+  const resp = await fetch(url.toString())
+  if (!resp.ok) return null
+  const raw = await resp.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+  if (payload.status !== 'OK') return null
+  return payload.result || null
 }
 
 async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
@@ -57,9 +99,27 @@ async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
     throw new Error(payload.error_message || payload.status || `Google API failed (HTTP ${response.status}).`)
   }
 
-  const businesses = (payload.results || [])
-    .slice(0, maxResults)
-    .map(mapGooglePlace)
+  const sliced = (payload.results || []).slice(0, maxResults)
+  const businesses = await Promise.all(
+    sliced.map(async (place) => {
+      const details = await fetchPlaceDetailsClient({
+        placeId: place.place_id,
+        googleKey,
+      })
+      const base = mapGooglePlace(place)
+      return {
+        ...base,
+        name: details?.name || base.name,
+        address: details?.formatted_address || base.address,
+        website: details?.website || base.website,
+        contact_no:
+          details?.international_phone_number ||
+          details?.formatted_phone_number ||
+          base.contact_no,
+        maps_url: details?.url || base.maps_url,
+      }
+    })
+  )
 
   return {
     success: true,
@@ -199,6 +259,8 @@ const GBMPage = () => {
               <tr>
                 <th>Business Name</th>
                 <th>Address</th>
+                <th>Contact No.</th>
+                <th>Website</th>
                 <th>Rating</th>
                 <th>Reviews</th>
                 <th>Status</th>
@@ -207,12 +269,20 @@ const GBMPage = () => {
             </thead>
             <tbody>
               {businesses.length === 0 ? (
-                <tr><td colSpan="6" className="gbm-empty">No results found.</td></tr>
+                <tr><td colSpan="8" className="gbm-empty">No results found.</td></tr>
               ) : (
                 businesses.map((biz) => (
                   <tr key={biz.place_id || `${biz.name}-${biz.address}`}>
                     <td className="biz-name">{biz.name}</td>
                     <td className="biz-address">{biz.address || '—'}</td>
+                    <td>{biz.contact_no || '—'}</td>
+                    <td className="biz-website">
+                      {biz.website ? (
+                        <a href={biz.website} target="_blank" rel="noopener noreferrer">
+                          {biz.website}
+                        </a>
+                      ) : '—'}
+                    </td>
                     <td>
                       {typeof biz.rating === 'number' ? (
                         <span className="rating-pill">

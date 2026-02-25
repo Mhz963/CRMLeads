@@ -194,6 +194,38 @@
   flex-wrap: wrap;
 }
 
+.card-move-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.move-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--text-secondary);
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.move-btn:hover:not(:disabled) {
+  border-color: var(--primary-opacity-40);
+  color: var(--primary);
+  background: var(--primary-opacity-10);
+}
+
+.move-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .card-tag {
   font-size: 0.7rem;
   font-weight: 600;

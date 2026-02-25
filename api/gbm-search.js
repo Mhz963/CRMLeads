@@ -32,20 +32,49 @@ function parseMaybeJson(input) {
   return input
 }
 
-function toBusiness(place) {
+async function fetchPlaceDetails(placeId) {
+  if (!placeId) return null
+  const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json')
+  detailsUrl.searchParams.set('place_id', placeId)
+  detailsUrl.searchParams.set(
+    'fields',
+    [
+      'name',
+      'formatted_address',
+      'website',
+      'formatted_phone_number',
+      'international_phone_number',
+      'url',
+    ].join(',')
+  )
+  detailsUrl.searchParams.set('key', googleMapsApiKey)
+
+  const resp = await fetch(detailsUrl.toString())
+  if (!resp.ok) return null
+  const payload = await resp.json()
+  if (payload.status !== 'OK') return null
+  return payload.result || null
+}
+
+function toBusiness(place, details) {
   return {
     place_id: place.place_id || null,
-    name: place.name || 'Unknown',
-    address: place.formatted_address || '',
+    name: details?.name || place.name || 'Unknown',
+    address: details?.formatted_address || place.formatted_address || '',
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviews: Number.isFinite(place.user_ratings_total) ? place.user_ratings_total : 0,
     business_status: place.business_status || '',
     open_now: typeof place?.opening_hours?.open_now === 'boolean'
       ? place.opening_hours.open_now
       : null,
-    maps_url: place.place_id
+    contact_no:
+      details?.international_phone_number ||
+      details?.formatted_phone_number ||
+      null,
+    website: details?.website || null,
+    maps_url: details?.url || (place.place_id
       ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
-      : null,
+      : null),
     types: Array.isArray(place.types) ? place.types : [],
   }
 }
@@ -107,16 +136,20 @@ export default async function handler(req, res) {
       })
     }
 
-    const results = (mapsData.results || [])
-      .slice(0, maxResults)
-      .map(toBusiness)
+    const sliced = (mapsData.results || []).slice(0, maxResults)
+    const enriched = await Promise.all(
+      sliced.map(async (place) => {
+        const details = await fetchPlaceDetails(place.place_id)
+        return toBusiness(place, details)
+      })
+    )
 
     return res.status(200).json({
       success: true,
       query,
-      total: results.length,
+      total: enriched.length,
       next_page_token: mapsData.next_page_token || null,
-      businesses: results,
+      businesses: enriched,
     })
   } catch (err) {
     console.error('GBM search API error:', err)

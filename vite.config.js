@@ -20,6 +20,12 @@ export default defineConfig({
         secure: true,
         rewrite: () => '/maps/api/place/textsearch/json',
       },
+      '/__gbm_proxy/details': {
+        target: 'https://maps.googleapis.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => '/maps/api/place/details/json',
+      },
     },
   },
 })

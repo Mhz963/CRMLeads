@@ -118,6 +118,24 @@
   min-width: 280px;
 }
 
+.biz-website {
+  max-width: 220px;
+}
+
+.biz-website a {
+  color: var(--primary);
+  text-decoration: none;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.biz-website a:hover {
+  text-decoration: underline;
+}
+
 .rating-pill {
   display: inline-flex;
   align-items: center;

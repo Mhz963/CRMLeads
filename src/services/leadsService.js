@@ -9,9 +9,56 @@ export const LEAD_SOURCES = ['Manual', 'Web Form', 'CSV Import', 'Website API', 
 // Smart tags
 export const LEAD_TAGS = ['Hot', 'Needs Follow-up', 'High Value']
 
+function normalizeLeadStatus(status) {
+  // Backward compatibility for older rows created before "New Lead" became default.
+  if (status === 'New') return 'New Lead'
+  return status || 'New Lead'
+}
+
+function normalizeLeadRecord(lead) {
+  return {
+    ...lead,
+    status: normalizeLeadStatus(lead?.status),
+  }
+}
+
 async function currentUserId() {
   const { data } = await supabase.auth.getUser()
   return data?.user?.id ?? null
+}
+
+async function fallbackMoveLeadStage(id, newStatus) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+
+  const response = await fetch('/api/move-lead-stage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ id, newStatus }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || !payload.success) {
+    if (response.status === 404 || response.status === 405) {
+      throw new Error(
+        'Pipeline fallback endpoint is not deployed yet (HTTP 404/405). Run the latest RLS SQL update or deploy latest backend.'
+      )
+    }
+    throw new Error(payload.error || `Failed to move lead stage (HTTP ${response.status})`)
+  }
+
+  return normalizeLeadRecord(payload.lead)
 }
 
 /* ─────────────────────  CRUD  ───────────────────── */
@@ -22,7 +69,7 @@ export async function fetchLeads() {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) throw error
-  return data
+  return (data || []).map(normalizeLeadRecord)
 }
 
 export async function fetchLeadById(id) {
@@ -32,7 +79,7 @@ export async function fetchLeadById(id) {
     .eq('id', id)
     .single()
   if (error) throw error
-  return data
+  return normalizeLeadRecord(data)
 }
 
 export async function createLead(payload) {
@@ -62,7 +109,7 @@ export async function createLead(payload) {
     .select()
     .single()
   if (error) throw error
-  return data
+  return normalizeLeadRecord(data)
 }
 
 export async function updateLead(id, updates) {
@@ -73,7 +120,7 @@ export async function updateLead(id, updates) {
     .select()
     .single()
   if (error) throw error
-  return data
+  return normalizeLeadRecord(data)
 }
 
 export async function deleteLead(id) {
@@ -82,7 +129,15 @@ export async function deleteLead(id) {
 }
 
 export async function moveLeadStage(id, newStatus) {
-  return updateLead(id, { status: newStatus })
+  try {
+    return await updateLead(id, { status: newStatus })
+  } catch (err) {
+    // RLS can make update return 0 rows (PGRST116). Use secure server fallback.
+    if (err?.code === 'PGRST116') {
+      return fallbackMoveLeadStage(id, newStatus)
+    }
+    throw err
+  }
 }
 
 /* ─────────────────────  CSV IMPORT  ───────────────────── */
@@ -150,23 +205,28 @@ export async function fetchDashboardStats() {
     .select('status, score, created_at, source, tag')
   if (error) throw error
 
-  const total = allLeads.length
+  const normalizedLeads = (allLeads || []).map((l) => ({
+    ...l,
+    status: normalizeLeadStatus(l.status),
+  }))
+
+  const total = normalizedLeads.length
 
   const byStage = PIPELINE_STAGES.reduce((acc, stage) => {
-    acc[stage] = allLeads.filter(l => l.status === stage).length
+    acc[stage] = normalizedLeads.filter(l => l.status === stage).length
     return acc
   }, {})
 
   const closed = byStage['Closed'] || 0
   const conversionRate = total > 0 ? Math.round((closed / total) * 100) : 0
 
-  const bySource = allLeads.reduce((acc, l) => {
+  const bySource = normalizedLeads.reduce((acc, l) => {
     const src = l.source || 'Unknown'
     acc[src] = (acc[src] || 0) + 1
     return acc
   }, {})
 
-  const byTag = allLeads.reduce((acc, l) => {
+  const byTag = normalizedLeads.reduce((acc, l) => {
     if (l.tag) acc[l.tag] = (acc[l.tag] || 0) + 1
     return acc
   }, {})
@@ -174,7 +234,7 @@ export async function fetchDashboardStats() {
   // Leads created this week
   const oneWeekAgo = new Date()
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-  const newThisWeek = allLeads.filter(l => new Date(l.created_at) >= oneWeekAgo).length
+  const newThisWeek = normalizedLeads.filter(l => new Date(l.created_at) >= oneWeekAgo).length
 
   return {
     totalLeads: total,
