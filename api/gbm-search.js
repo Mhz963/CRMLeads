@@ -46,6 +46,25 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function fetchTextSearchPage({ query, region, pageToken }) {
+  const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json')
+  if (pageToken) {
+    // Google requires pagetoken for subsequent pages.
+    searchUrl.searchParams.set('pagetoken', pageToken)
+  } else {
+    searchUrl.searchParams.set('query', query)
+    searchUrl.searchParams.set('region', region)
+  }
+  searchUrl.searchParams.set('key', googleMapsApiKey)
+
+  const resp = await fetch(searchUrl.toString())
+  if (!resp.ok) {
+    return { ok: false, status: resp.status, data: null }
+  }
+  const data = await resp.json()
+  return { ok: true, status: resp.status, data }
+}
+
 async function fetchPlaceDetails(placeId) {
   if (!placeId) return null
   const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json')
@@ -130,31 +149,31 @@ export default async function handler(req, res) {
       ? Math.max(1, Math.min(60, maxResultsRaw))
       : 20
 
-    const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json')
-    if (pageToken) {
-      // Google requires pagetoken for subsequent pages.
-      searchUrl.searchParams.set('pagetoken', pageToken)
-    } else {
-      searchUrl.searchParams.set('query', query)
-      searchUrl.searchParams.set('region', region)
-    }
-    searchUrl.searchParams.set('key', googleMapsApiKey)
-
-    let mapsResp = await fetch(searchUrl.toString())
-    if (!mapsResp.ok) {
+    let fetchResult = await fetchTextSearchPage({ query, region, pageToken })
+    if (!fetchResult.ok) {
       return res.status(502).json({
         success: false,
-        error: `Google Maps API failed with status ${mapsResp.status}.`,
+        error: `Google Maps API failed with status ${fetchResult.status}.`,
       })
     }
 
-    let mapsData = await mapsResp.json()
+    let mapsData = fetchResult.data
     // next_page_token can need a short delay before becoming valid.
     if (pageToken && mapsData.status === 'INVALID_REQUEST') {
-      await sleep(1800)
-      mapsResp = await fetch(searchUrl.toString())
-      if (mapsResp.ok) {
-        mapsData = await mapsResp.json()
+      const retryDelays = [1500, 2200, 3000, 3800]
+      for (const delay of retryDelays) {
+        await sleep(delay)
+        fetchResult = await fetchTextSearchPage({ query, region, pageToken })
+        if (!fetchResult.ok) {
+          return res.status(502).json({
+            success: false,
+            error: `Google Maps API failed with status ${fetchResult.status}.`,
+          })
+        }
+        mapsData = fetchResult.data
+        if (mapsData.status !== 'INVALID_REQUEST') {
+          break
+        }
       }
     }
     if (mapsData.status !== 'OK' && mapsData.status !== 'ZERO_RESULTS') {

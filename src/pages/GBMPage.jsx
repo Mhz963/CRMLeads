@@ -90,13 +90,28 @@ async function fetchGBMDirectFromGoogle({ query, region, maxResults, pageToken =
   }
   url.searchParams.set('key', googleKey)
 
-  const response = await fetch(url.toString())
-  const raw = await response.text()
-  let payload = {}
-  try {
-    payload = raw ? JSON.parse(raw) : {}
-  } catch {
-    payload = {}
+  async function doFetch() {
+    const response = await fetch(url.toString())
+    const raw = await response.text()
+    let payload = {}
+    try {
+      payload = raw ? JSON.parse(raw) : {}
+    } catch {
+      payload = {}
+    }
+    return { response, payload }
+  }
+
+  let { response, payload } = await doFetch()
+  if (pageToken && payload.status === 'INVALID_REQUEST') {
+    const retryDelays = [1500, 2200, 3000, 3800]
+    for (const delay of retryDelays) {
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      const fetched = await doFetch()
+      response = fetched.response
+      payload = fetched.payload
+      if (payload.status !== 'INVALID_REQUEST') break
+    }
   }
 
   if (!response.ok || (payload.status !== 'OK' && payload.status !== 'ZERO_RESULTS')) {
