@@ -205,6 +205,7 @@ const GBMPage = () => {
   const [newModeBusinesses, setNewModeBusinesses] = useState([])
   const [newModeNextToken, setNewModeNextToken] = useState('')
   const [isFetchingNextPage, setIsFetchingNextPage] = useState(false)
+  const [selectedBusinessKey, setSelectedBusinessKey] = useState(null)
 
   async function fetchGBMListFromDb() {
     const { data, error: dbErr } = await supabase
@@ -276,6 +277,15 @@ const GBMPage = () => {
   const totalPages = Math.max(1, Math.ceil(businesses.length / entriesPerPage))
   const pageStart = (currentPage - 1) * entriesPerPage
   const paginatedBusinesses = businesses.slice(pageStart, pageStart + entriesPerPage)
+  const selectedBusiness = businesses.find(
+    (biz) => (biz.place_id || `${biz.name}-${biz.address}`) === selectedBusinessKey
+  ) || null
+
+  useEffect(() => {
+    if (!selectedBusinessKey) return
+    const exists = businesses.some((biz) => (biz.place_id || `${biz.name}-${biz.address}`) === selectedBusinessKey)
+    if (!exists) setSelectedBusinessKey(null)
+  }, [businesses, selectedBusinessKey])
 
   const avgRating = useMemo(() => {
     const rated = businesses.filter((b) => typeof b.rating === 'number')
@@ -337,6 +347,11 @@ const GBMPage = () => {
         setCurrentPage((p) => p + 1)
       }
     }
+  }
+
+  const toggleBusinessDetails = (biz) => {
+    const key = biz.place_id || `${biz.name}-${biz.address}`
+    setSelectedBusinessKey((prev) => (prev === key ? null : key))
   }
 
   return (
@@ -435,60 +450,113 @@ const GBMPage = () => {
           <span>{error?.message || 'Failed to fetch GBM businesses.'}</span>
         </div>
       ) : (
-        <div className="gbm-table-wrap">
-          <table className="gbm-table">
-            <thead>
-              <tr>
-                <th>Business Name</th>
-                <th>Address</th>
-                <th>Contact No.</th>
-                <th>Email</th>
-                <th>Website</th>
-                <th>Rating</th>
-                <th>Reviews</th>
-                <th>Status</th>
-                <th>Map</th>
-              </tr>
-            </thead>
-            <tbody>
-              {businesses.length === 0 ? (
-                <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
-              ) : (
-                paginatedBusinesses.map((biz) => (
-                  <tr key={biz.place_id || `${biz.name}-${biz.address}`}>
-                    <td className="biz-name">{biz.name}</td>
-                    <td className="biz-address">{biz.address || '—'}</td>
-                    <td>{biz.contact_no || '—'}</td>
-                    <td>{biz.email || '—'}</td>
-                    <td className="biz-website">
-                      {biz.website ? (
-                        <a href={biz.website} target="_blank" rel="noopener noreferrer">
-                          {biz.website}
-                        </a>
-                      ) : '—'}
-                    </td>
-                    <td>
-                      {typeof biz.rating === 'number' ? (
-                        <span className="rating-pill">
-                          <Star size={12} />
-                          {biz.rating}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td>{biz.reviews ?? 0}</td>
-                    <td>{biz.business_status || '—'}</td>
-                    <td>
-                      {biz.maps_url ? (
-                        <a href={biz.maps_url} target="_blank" rel="noopener noreferrer" className="map-link">
-                          Open <ExternalLink size={12} />
-                        </a>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="gbm-content-wrap">
+          <div className="gbm-table-wrap">
+            <table className="gbm-table">
+              <thead>
+                <tr>
+                  <th>Business Name</th>
+                  <th>Address</th>
+                  <th>Contact No.</th>
+                  <th>Email</th>
+                  <th>Website</th>
+                  <th>Rating</th>
+                  <th>Reviews</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {businesses.length === 0 ? (
+                  <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
+                ) : (
+                  paginatedBusinesses.map((biz) => {
+                    const rowKey = biz.place_id || `${biz.name}-${biz.address}`
+                    const isOpen = selectedBusinessKey === rowKey
+                    return (
+                      <tr key={rowKey}>
+                        <td className="biz-name">{biz.name}</td>
+                        <td className="biz-address">{biz.address || '—'}</td>
+                        <td>{biz.contact_no || '—'}</td>
+                        <td>{biz.email || '—'}</td>
+                        <td className="biz-website">
+                          {biz.website ? (
+                            <a href={biz.website} target="_blank" rel="noopener noreferrer">
+                              {biz.website}
+                            </a>
+                          ) : '—'}
+                        </td>
+                        <td>
+                          {typeof biz.rating === 'number' ? (
+                            <span className="rating-pill">
+                              <Star size={12} />
+                              {biz.rating}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td>{biz.reviews ?? 0}</td>
+                        <td>{biz.business_status || '—'}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`details-toggle-btn ${isOpen ? 'open' : ''}`}
+                            onClick={() => toggleBusinessDetails(biz)}
+                          >
+                            {isOpen ? 'Close' : 'Open'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <aside className={`gbm-side-panel ${selectedBusiness ? 'open' : ''}`}>
+            {selectedBusiness ? (
+              <>
+                <div className="gbm-side-panel-header">
+                  <h3>{selectedBusiness.name || 'Business Details'}</h3>
+                  <button
+                    type="button"
+                    className="panel-close-btn"
+                    onClick={() => setSelectedBusinessKey(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="gbm-side-panel-body">
+                  <p><strong>Address:</strong> {selectedBusiness.address || '—'}</p>
+                  <p><strong>Contact:</strong> {selectedBusiness.contact_no || '—'}</p>
+                  <p><strong>Email:</strong> {selectedBusiness.email || '—'}</p>
+                  <p>
+                    <strong>Website:</strong>{' '}
+                    {selectedBusiness.website ? (
+                      <a href={selectedBusiness.website} target="_blank" rel="noopener noreferrer">
+                        {selectedBusiness.website}
+                      </a>
+                    ) : '—'}
+                  </p>
+                  <p>
+                    <strong>Google Maps:</strong>{' '}
+                    {selectedBusiness.maps_url ? (
+                      <a href={selectedBusiness.maps_url} target="_blank" rel="noopener noreferrer" className="map-link">
+                        Open <ExternalLink size={12} />
+                      </a>
+                    ) : '—'}
+                  </p>
+                  <p><strong>Status:</strong> {selectedBusiness.business_status || '—'}</p>
+                  <p><strong>Rating:</strong> {typeof selectedBusiness.rating === 'number' ? selectedBusiness.rating : '—'}</p>
+                  <p><strong>Reviews:</strong> {selectedBusiness.reviews ?? 0}</p>
+                </div>
+              </>
+            ) : (
+              <div className="gbm-side-panel-empty">
+                Select a business row and click <strong>Open</strong> to view details.
+              </div>
+            )}
+          </aside>
         </div>
       )}
 
