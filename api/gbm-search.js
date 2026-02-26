@@ -42,6 +42,10 @@ function parseMaybeJson(input) {
   return input
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function fetchPlaceDetails(placeId) {
   if (!placeId) return null
   const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json')
@@ -120,17 +124,23 @@ export default async function handler(req, res) {
     const body = parseMaybeJson(req.body)
     const query = (body.query || 'plumber in Auckland New Zealand').trim()
     const region = (body.region || 'nz').trim()
+    const pageToken = (body.page_token || '').trim()
     const maxResultsRaw = Number(body.max_results || 20)
     const maxResults = Number.isFinite(maxResultsRaw)
       ? Math.max(1, Math.min(60, maxResultsRaw))
       : 20
 
     const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json')
-    searchUrl.searchParams.set('query', query)
-    searchUrl.searchParams.set('region', region)
+    if (pageToken) {
+      // Google requires pagetoken for subsequent pages.
+      searchUrl.searchParams.set('pagetoken', pageToken)
+    } else {
+      searchUrl.searchParams.set('query', query)
+      searchUrl.searchParams.set('region', region)
+    }
     searchUrl.searchParams.set('key', googleMapsApiKey)
 
-    const mapsResp = await fetch(searchUrl.toString())
+    let mapsResp = await fetch(searchUrl.toString())
     if (!mapsResp.ok) {
       return res.status(502).json({
         success: false,
@@ -138,7 +148,15 @@ export default async function handler(req, res) {
       })
     }
 
-    const mapsData = await mapsResp.json()
+    let mapsData = await mapsResp.json()
+    // next_page_token can need a short delay before becoming valid.
+    if (pageToken && mapsData.status === 'INVALID_REQUEST') {
+      await sleep(1800)
+      mapsResp = await fetch(searchUrl.toString())
+      if (mapsResp.ok) {
+        mapsData = await mapsResp.json()
+      }
+    }
     if (mapsData.status !== 'OK' && mapsData.status !== 'ZERO_RESULTS') {
       return res.status(400).json({
         success: false,

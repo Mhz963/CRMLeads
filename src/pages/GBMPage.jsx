@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink } from 'lucide-react'
 import { supabase } from '../services/supabaseClient'
@@ -64,7 +64,7 @@ async function fetchPlaceDetailsClient({ placeId, googleKey }) {
   return payload.result || null
 }
 
-async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
+async function fetchGBMDirectFromGoogle({ query, region, maxResults, pageToken = '' }) {
   // Fallback only if server endpoint is not deployed yet.
   // In localhost dev, use Vite proxy to avoid browser CORS.
   const googleKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
@@ -82,8 +82,12 @@ async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
     : 'https://maps.googleapis.com/maps/api/place/textsearch/json'
 
   const url = new URL(baseUrl)
-  url.searchParams.set('query', query)
-  url.searchParams.set('region', region)
+  if (pageToken) {
+    url.searchParams.set('pagetoken', pageToken)
+  } else {
+    url.searchParams.set('query', query)
+    url.searchParams.set('region', region)
+  }
   url.searchParams.set('key', googleKey)
 
   const response = await fetch(url.toString())
@@ -130,7 +134,7 @@ async function fetchGBMDirectFromGoogle({ query, region, maxResults }) {
   }
 }
 
-async function fetchGBMResults({ query, region, maxResults }) {
+async function fetchGBMResults({ query, region, maxResults, pageToken = '' }) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData?.session?.access_token
   if (!token) throw new Error('Please sign in again to use GBM search.')
@@ -145,6 +149,7 @@ async function fetchGBMResults({ query, region, maxResults }) {
       query,
       region,
       max_results: maxResults,
+      page_token: pageToken,
     }),
   })
 
@@ -160,7 +165,12 @@ async function fetchGBMResults({ query, region, maxResults }) {
   if (response.status === 404 || response.status === 405) {
     // In production domain this direct fallback can still be blocked by CORS.
     // We keep it primarily for localhost dev via Vite proxy.
-    return fetchGBMDirectFromGoogle({ query, region, maxResults })
+    return fetchGBMDirectFromGoogle({
+      query,
+      region,
+      maxResults,
+      pageToken,
+    })
   }
 
   if (!response.ok || !payload.success) {
@@ -175,6 +185,9 @@ const GBMPage = () => {
   const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
   const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
+  const [newModeBusinesses, setNewModeBusinesses] = useState([])
+  const [newModeNextToken, setNewModeNextToken] = useState('')
+  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false)
 
   async function fetchGBMListFromDb() {
     const { data, error: dbErr } = await supabase
@@ -230,7 +243,15 @@ const GBMPage = () => {
     ),
   })
 
-  const businesses = data?.businesses || []
+  useEffect(() => {
+    if (mode === 'new' && data?.businesses) {
+      setNewModeBusinesses(data.businesses)
+      setNewModeNextToken(data.next_page_token || '')
+      setCurrentPage(1)
+    }
+  }, [mode, data?.businesses, data?.next_page_token])
+
+  const businesses = mode === 'new' ? newModeBusinesses : (data?.businesses || [])
   const totalPages = Math.max(1, Math.ceil(businesses.length / entriesPerPage))
   const pageStart = (currentPage - 1) * entriesPerPage
   const paginatedBusinesses = businesses.slice(pageStart, pageStart + entriesPerPage)
@@ -245,6 +266,56 @@ const GBMPage = () => {
     e.preventDefault()
     setSubmittedQuery(query.trim() || 'plumber in Auckland New Zealand')
     setCurrentPage(1)
+    setNewModeBusinesses([])
+    setNewModeNextToken('')
+  }
+
+  const fetchNextGoogleBatch = async () => {
+    if (!newModeNextToken || mode !== 'new') return 0
+    setIsFetchingNextPage(true)
+    try {
+      const nextData = await fetchGBMResults({
+        query: submittedQuery,
+        region: 'nz',
+        maxResults: 20,
+        pageToken: newModeNextToken,
+      })
+      const incoming = nextData?.businesses || []
+      if (!incoming.length) {
+        setNewModeNextToken(nextData?.next_page_token || '')
+        return 0
+      }
+
+      setNewModeBusinesses((prev) => {
+        const seen = new Set(prev.map((b) => b.place_id || `${b.name}-${b.address}`))
+        const merged = [...prev]
+        incoming.forEach((b) => {
+          const key = b.place_id || `${b.name}-${b.address}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            merged.push(b)
+          }
+        })
+        return merged
+      })
+      setNewModeNextToken(nextData?.next_page_token || '')
+      return incoming.length
+    } finally {
+      setIsFetchingNextPage(false)
+    }
+  }
+
+  const handleNextPage = async () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((p) => p + 1)
+      return
+    }
+    if (mode === 'new' && newModeNextToken) {
+      const added = await fetchNextGoogleBatch()
+      if (added > 0) {
+        setCurrentPage((p) => p + 1)
+      }
+    }
   }
 
   return (
@@ -429,10 +500,13 @@ const GBMPage = () => {
           <button
             className="btn-outline"
             type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={
+              isFetchingNextPage ||
+              (currentPage >= totalPages && !(mode === 'new' && newModeNextToken))
+            }
+            onClick={handleNextPage}
           >
-            Next
+            {isFetchingNextPage ? 'Loading…' : 'Next'}
           </button>
         </div>
       )}
