@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink } from 'lucide-react'
 import { supabase } from '../services/supabaseClient'
 import './GBMPage.css'
@@ -195,7 +196,8 @@ async function fetchGBMResults({ query, region, maxResults, pageToken = '' }) {
 }
 
 const GBMPage = () => {
-  const [mode, setMode] = useState('new') // new | list
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('view') === 'new' ? 'new' : 'list'
   const [query, setQuery] = useState('plumber in Auckland New Zealand')
   const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
   const [entriesPerPage, setEntriesPerPage] = useState(20)
@@ -257,6 +259,10 @@ const GBMPage = () => {
         : fetchGBMListFromDb()
     ),
   })
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [mode])
 
   useEffect(() => {
     if (mode === 'new' && data?.businesses) {
@@ -345,19 +351,6 @@ const GBMPage = () => {
           </p>
         </div>
         <div className="gbm-header-actions">
-          <div className="gbm-field small">
-            <label>View</label>
-            <select
-              value={mode}
-              onChange={(e) => {
-                setMode(e.target.value)
-                setCurrentPage(1)
-              }}
-            >
-              <option value="new">New</option>
-              <option value="list">List</option>
-            </select>
-          </div>
           <button className="btn-outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCcw size={15} className={isFetching ? 'spinning' : ''} />
             Refresh

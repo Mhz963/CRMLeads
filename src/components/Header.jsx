@@ -1,10 +1,11 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Sparkles,
   LayoutDashboard,
   Users,
   KanbanSquare,
   MapPinned,
+  ChevronDown,
   ClipboardList,
   Shield,
   LogOut,
@@ -15,6 +16,7 @@ import './Header.css'
 
 const Header = ({ user, userProfile }) => {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleSignOut = async () => {
     try {
@@ -28,6 +30,9 @@ const Header = ({ user, userProfile }) => {
   const role = userProfile?.role
   const displayName = userProfile?.full_name || user?.email || ''
   const initial = displayName.charAt(0).toUpperCase()
+  const isGbmRoute = location.pathname === '/gbm'
+  const gbmViewParam = new URLSearchParams(location.search).get('view')
+  const gbmView = gbmViewParam === 'new' ? 'new' : 'list'
 
   return (
     <header className="header">
@@ -59,13 +64,30 @@ const Header = ({ user, userProfile }) => {
             <KanbanSquare className="nav-icon" />
             Pipeline
           </NavLink>
-          <NavLink
-            to="/gbm"
-            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-          >
-            <MapPinned className="nav-icon" />
-            GBM
-          </NavLink>
+          <div className={`nav-dropdown ${isGbmRoute ? 'active' : ''}`}>
+            <NavLink
+              to={`/gbm?view=${gbmView}`}
+              className={`nav-tab dropdown-trigger ${isGbmRoute ? 'active' : ''}`}
+            >
+              <MapPinned className="nav-icon" />
+              GBM
+              <ChevronDown className="dropdown-icon" />
+            </NavLink>
+            <div className="dropdown-menu">
+              <Link
+                to="/gbm?view=new"
+                className={`dropdown-item ${isGbmRoute && gbmView === 'new' ? 'active' : ''}`}
+              >
+                New
+              </Link>
+              <Link
+                to="/gbm?view=list"
+                className={`dropdown-item ${isGbmRoute && gbmView === 'list' ? 'active' : ''}`}
+              >
+                List
+              </Link>
+            </div>
+          </div>
           <NavLink
             to="/tasks"
             className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
