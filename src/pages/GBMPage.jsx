@@ -150,7 +150,7 @@ async function fetchGBMDirectFromGoogle({ query, region, maxResults, pageToken =
   }
 }
 
-async function fetchGBMResults({ query, region, maxResults, pageToken = '' }) {
+async function fetchGBMResults({ query, region, maxResults, pageToken = '', advanceToken = false }) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData?.session?.access_token
   if (!token) throw new Error('Please sign in again to use GBM search.')
@@ -166,6 +166,7 @@ async function fetchGBMResults({ query, region, maxResults, pageToken = '' }) {
       region,
       max_results: maxResults,
       page_token: pageToken,
+      advance_token: advanceToken,
     }),
   })
 
@@ -287,6 +288,13 @@ const GBMPage = () => {
     if (!exists) setSelectedBusinessKey(null)
   }, [businesses, selectedBusinessKey])
 
+  useEffect(() => {
+    // Prevent impossible state like "Page 2 of 1", which hides all rows.
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const avgRating = useMemo(() => {
     const rated = businesses.filter((b) => typeof b.rating === 'number')
     if (!rated.length) return null
@@ -309,7 +317,8 @@ const GBMPage = () => {
         query: submittedQuery,
         region: 'nz',
         maxResults: 20,
-        pageToken: newModeNextToken,
+        pageToken: '',
+        advanceToken: true,
       })
       const incoming = nextData?.businesses || []
       if (!incoming.length) {

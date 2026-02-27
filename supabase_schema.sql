@@ -209,6 +209,20 @@ create table if not exists public.gbm_businesses (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.gbm_query_state (
+  id uuid primary key default gen_random_uuid(),
+  query text not null,
+  region text not null default 'nz',
+  next_page_token text,
+  last_status text,
+  last_error text,
+  last_used_token text,
+  hit_count integer not null default 0,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now(),
+  unique (query, region)
+);
+
 -- ──────────────────────────────────────────────────────
 -- INDEXES
 -- ──────────────────────────────────────────────────────
@@ -219,6 +233,7 @@ create index if not exists leads_created_by_idx on public.leads(created_by);
 create index if not exists tasks_assigned_to_idx on public.tasks(assigned_to);
 create index if not exists gbm_businesses_last_seen_idx on public.gbm_businesses(last_seen_at desc);
 create index if not exists gbm_businesses_last_query_idx on public.gbm_businesses(last_query);
+create index if not exists gbm_query_state_updated_idx on public.gbm_query_state(updated_at desc);
 
 -- ════════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY
@@ -232,6 +247,7 @@ alter table public.activities enable row level security;
 alter table public.tasks enable row level security;
 alter table public.email_templates enable row level security;
 alter table public.gbm_businesses enable row level security;
+alter table public.gbm_query_state enable row level security;
 
 -- ─────────── Helper: is current user an admin? ───────────
 -- (used in policies below via sub-select)
@@ -429,6 +445,11 @@ create policy "email_templates_owner_update"
 drop policy if exists "gbm_businesses_select_auth" on public.gbm_businesses;
 create policy "gbm_businesses_select_auth"
   on public.gbm_businesses for select
+  using (auth.uid() is not null);
+
+drop policy if exists "gbm_query_state_select_auth" on public.gbm_query_state;
+create policy "gbm_query_state_select_auth"
+  on public.gbm_query_state for select
   using (auth.uid() is not null);
 
 -- ══════════════════════════════════════════════════════════════

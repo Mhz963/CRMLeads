@@ -112,6 +112,41 @@ function toBusiness(place, details) {
   }
 }
 
+async function readTokenState(supabaseAdmin, query, region) {
+  const { data, error } = await supabaseAdmin
+    .from('gbm_query_state')
+    .select('next_page_token, hit_count')
+    .eq('query', query)
+    .eq('region', region)
+    .maybeSingle()
+
+  if (error) return null
+  return data || null
+}
+
+async function writeTokenState(supabaseAdmin, {
+  query,
+  region,
+  nextPageToken,
+  lastStatus,
+  lastError = null,
+  lastUsedToken = null,
+  hitCount = 0,
+}) {
+  await supabaseAdmin
+    .from('gbm_query_state')
+    .upsert({
+      query,
+      region,
+      next_page_token: nextPageToken || null,
+      last_status: lastStatus || null,
+      last_error: lastError,
+      last_used_token: lastUsedToken,
+      hit_count: hitCount,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'query,region' })
+}
+
 export default async function handler(req, res) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v))
 
@@ -143,14 +178,33 @@ export default async function handler(req, res) {
     const body = parseMaybeJson(req.body)
     const query = (body.query || 'plumber in Auckland New Zealand').trim()
     const region = (body.region || 'nz').trim()
-    const pageToken = (body.page_token || '').trim()
+    const requestedPageToken = (body.page_token || '').trim()
+    const advanceToken = body.advance_token === true || body.advance_token === 'true'
     const maxResultsRaw = Number(body.max_results || 20)
     const maxResults = Number.isFinite(maxResultsRaw)
       ? Math.max(1, Math.min(60, maxResultsRaw))
       : 20
 
-    let fetchResult = await fetchTextSearchPage({ query, region, pageToken })
+    const supabaseAdmin = getSupabaseAdmin()
+    const tokenState = await readTokenState(supabaseAdmin, query, region)
+    const effectivePageToken = requestedPageToken || (advanceToken ? (tokenState?.next_page_token || '') : '')
+    const nextHitCount = Number(tokenState?.hit_count || 0) + 1
+
+    let fetchResult = await fetchTextSearchPage({
+      query,
+      region,
+      pageToken: effectivePageToken,
+    })
     if (!fetchResult.ok) {
+      await writeTokenState(supabaseAdmin, {
+        query,
+        region,
+        nextPageToken: tokenState?.next_page_token || null,
+        lastStatus: 'HTTP_ERROR',
+        lastError: `Google Maps API failed with status ${fetchResult.status}.`,
+        lastUsedToken: effectivePageToken || null,
+        hitCount: nextHitCount,
+      })
       return res.status(502).json({
         success: false,
         error: `Google Maps API failed with status ${fetchResult.status}.`,
@@ -159,12 +213,21 @@ export default async function handler(req, res) {
 
     let mapsData = fetchResult.data
     // next_page_token can need a short delay before becoming valid.
-    if (pageToken && mapsData.status === 'INVALID_REQUEST') {
+    if (effectivePageToken && mapsData.status === 'INVALID_REQUEST') {
       const retryDelays = [1500, 2200, 3000, 3800]
       for (const delay of retryDelays) {
         await sleep(delay)
-        fetchResult = await fetchTextSearchPage({ query, region, pageToken })
+        fetchResult = await fetchTextSearchPage({ query, region, pageToken: effectivePageToken })
         if (!fetchResult.ok) {
+          await writeTokenState(supabaseAdmin, {
+            query,
+            region,
+            nextPageToken: tokenState?.next_page_token || null,
+            lastStatus: 'HTTP_ERROR',
+            lastError: `Google Maps API failed with status ${fetchResult.status}.`,
+            lastUsedToken: effectivePageToken || null,
+            hitCount: nextHitCount,
+          })
           return res.status(502).json({
             success: false,
             error: `Google Maps API failed with status ${fetchResult.status}.`,
@@ -177,6 +240,15 @@ export default async function handler(req, res) {
       }
     }
     if (mapsData.status !== 'OK' && mapsData.status !== 'ZERO_RESULTS') {
+      await writeTokenState(supabaseAdmin, {
+        query,
+        region,
+        nextPageToken: tokenState?.next_page_token || null,
+        lastStatus: mapsData.status,
+        lastError: mapsData.error_message || null,
+        lastUsedToken: effectivePageToken || null,
+        hitCount: nextHitCount,
+      })
       return res.status(400).json({
         success: false,
         error: `Google Maps error: ${mapsData.status}${mapsData.error_message ? ` - ${mapsData.error_message}` : ''}`,
@@ -192,7 +264,6 @@ export default async function handler(req, res) {
     )
 
     // Persist query results into GBM table without duplicates (unique place_id).
-    const supabaseAdmin = getSupabaseAdmin()
     const placeIds = enriched.map((b) => b.place_id).filter(Boolean)
     let inserted_count = 0
     let updated_count = 0
@@ -244,12 +315,25 @@ export default async function handler(req, res) {
       }
     }
 
+    await writeTokenState(supabaseAdmin, {
+      query,
+      region,
+      nextPageToken: mapsData.next_page_token || null,
+      lastStatus: mapsData.status || 'OK',
+      lastError: null,
+      lastUsedToken: effectivePageToken || null,
+      hitCount: nextHitCount,
+    })
+
     return res.status(200).json({
       success: true,
       query,
+      region,
       total: enriched.length,
       inserted_count,
       updated_count,
+      token_used: effectivePageToken || null,
+      from_stored_token: advanceToken && !requestedPageToken,
       next_page_token: mapsData.next_page_token || null,
       businesses: enriched,
     })
