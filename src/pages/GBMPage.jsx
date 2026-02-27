@@ -193,6 +193,9 @@ async function fetchGBMResults({ query, region, maxResults, pageToken = '', adva
   if (!response.ok || !payload.success) {
     throw new Error(payload.error || `Failed to fetch GBM data (HTTP ${response.status}).`)
   }
+
+  console.log('[GBM] token_used:', payload?.token_used || pageToken || null)
+  console.log('[GBM] next_page_token:', payload?.next_page_token || null)
   return payload
 }
 
@@ -311,14 +314,15 @@ const GBMPage = () => {
 
   const fetchNextGoogleBatch = async () => {
     if (!newModeNextToken || mode !== 'new') return 0
+    console.log('[GBM] Requesting next page with token:', newModeNextToken)
     setIsFetchingNextPage(true)
     try {
       const nextData = await fetchGBMResults({
         query: submittedQuery,
         region: 'nz',
         maxResults: 20,
-        pageToken: '',
-        advanceToken: true,
+        pageToken: newModeNextToken,
+        advanceToken: false,
       })
       const incoming = nextData?.businesses || []
       if (!incoming.length) {
