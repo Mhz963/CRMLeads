@@ -1,0 +1,279 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Vercel Serverless Function — Public Lead Capture API
+// POST /api/leads — External websites call this to submit leads into the CRM
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { createClient } from '@supabase/supabase-js'
+
+// These come from Vercel Environment Variables (set in dashboard or .env)
+const supabaseUrl = process.env.VITE_SUPABASE_URL
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY  // ⚠️ Server-only, bypasses RLS
+const apiKey = process.env.CRM_API_KEY                        // Shared secret for API callers
+
+// Create a Supabase admin client (bypasses RLS)
+function getSupabaseAdmin() {
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase config on server')
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+// CORS headers — allow any website to call this endpoint
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
+  'Access-Control-Max-Age': '86400',
+}
+
+function parseMaybeJson(input) {
+  if (!input) return {}
+  if (typeof input === 'string') {
+    try {
+      return JSON.parse(input)
+    } catch {
+      return {}
+    }
+  }
+  return input
+}
+
+function valueFromAliases(body, aliases) {
+  for (const key of aliases) {
+    const val = body?.[key]
+    if (val !== undefined && val !== null && String(val).trim() !== '') {
+      return String(val).trim()
+    }
+  }
+  return ''
+}
+
+function parseNumberMaybe(input) {
+  if (input === '' || input === undefined || input === null) return null
+  const n = Number(input)
+  return Number.isFinite(n) ? n : null
+}
+
+function normalizeWebsite(url) {
+  const clean = (url || '').trim()
+  if (!clean) return ''
+  if (/^https?:\/\//i.test(clean)) return clean
+  return `https://${clean}`
+}
+
+function extractBusinessFieldsFromNotes(rawNotes) {
+  const notes = (rawNotes || '').trim()
+  if (!notes) {
+    return { address: '', website: '', rating: null, reviews: null }
+  }
+  const addressMatch = notes.match(/(?:^|\n)\s*Address:\s*(.+)/i)
+  const websiteMatch = notes.match(/(?:^|\n)\s*Website:\s*(.+)/i)
+  const ratingMatch = notes.match(/(?:^|\n)\s*Rating:\s*([0-9]+(?:\.[0-9]+)?)/i)
+  const reviewsMatch = notes.match(/(?:^|\n)\s*Reviews:\s*([0-9]+)/i)
+
+  return {
+    address: addressMatch?.[1]?.trim() || '',
+    website: websiteMatch?.[1]?.trim() || '',
+    rating: ratingMatch?.[1] ? Number(ratingMatch[1]) : null,
+    reviews: reviewsMatch?.[1] ? Number(reviewsMatch[1]) : null,
+  }
+}
+
+export default async function handler(req, res) {
+  // Set CORS headers on EVERY response (including OPTIONS)
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    res.setHeader(key, value)
+  })
+
+  // ── Handle CORS preflight ──
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
+  // ── Only allow POST ──
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed. Use POST.',
+    })
+  }
+
+  // ── Validate API key ──
+  const providedKey = req.headers['x-api-key']
+  if (!apiKey) {
+    // If CRM_API_KEY is not set on server, reject all requests (safe default)
+    return res.status(500).json({
+      success: false,
+      error: 'API is not configured. Set CRM_API_KEY in environment variables.',
+    })
+  }
+  if (providedKey !== apiKey) {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid or missing API key. Include x-api-key header.',
+    })
+  }
+
+  // ── Parse & validate body ──
+  const body = parseMaybeJson(req.body)
+  const {
+    name,
+    full_name,
+    email,
+    phone,
+    business_address,
+    website,
+    map_url,
+    google_rating,
+    google_reviews,
+    services,
+    notes,
+    source_detail,  // optional: e.g. "Contact form on example.com"
+  } = body
+
+  const leadName = (name || full_name || '').trim()
+  const leadEmail = (email || '').trim()
+  const leadPhone = (phone || '').trim()
+  const notesExtracted = extractBusinessFieldsFromNotes(notes)
+  const leadAddress =
+    valueFromAliases(body, ['business_address', 'address', 'business_addr']) ||
+    notesExtracted.address
+  const leadWebsiteRaw =
+    valueFromAliases(body, ['website', 'web', 'site']) || notesExtracted.website
+  const leadWebsite = normalizeWebsite(leadWebsiteRaw)
+  const leadMapUrl = valueFromAliases(body, ['map_url', 'google_maps_url', 'maps_url'])
+  const leadRating =
+    parseNumberMaybe(
+      google_rating ??
+      body.rating ??
+      body.stars ??
+      notesExtracted.rating
+    )
+  const leadReviews =
+    parseNumberMaybe(
+      google_reviews ??
+      body.reviews ??
+      body.review_count ??
+      notesExtracted.reviews
+    )
+
+  if (!leadName) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required field: "name" (or "full_name").',
+    })
+  }
+
+  if (!leadEmail && !leadPhone) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one of "email" or "phone" is required.',
+    })
+  }
+
+  // Basic email format check
+  if (leadEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid email format.',
+    })
+  }
+
+  if (
+    leadRating !== null &&
+    (!Number.isFinite(leadRating) || leadRating < 0 || leadRating > 5)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'google_rating must be a number between 0 and 5.',
+    })
+  }
+
+  if (
+    leadReviews !== null &&
+    (!Number.isFinite(leadReviews) || leadReviews < 0)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'google_reviews must be a non-negative number.',
+    })
+  }
+
+  // ── Insert into Supabase ──
+  try {
+    const supabase = getSupabaseAdmin()
+
+    // Capture the caller's IP for analytics
+    const userIp =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.headers['x-real-ip'] ||
+      req.socket?.remoteAddress ||
+      null
+
+    const { data, error } = await supabase
+      .from('leads')
+      .insert({
+        full_name: leadName,
+        email: leadEmail || null,
+        phone: leadPhone || null,
+        business_address: leadAddress || null,
+        website: leadWebsite || null,
+        map_url: leadMapUrl || null,
+        google_rating: leadRating,
+        google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
+        services: (services || '').trim() || null,
+        notes: (notes || '').trim() || null,
+        source: 'Website API',
+        status: 'New Lead',
+        user_ip: userIp,
+        tag: null,
+        score: null,
+        assigned_to: null,
+        created_by: null,        // No authenticated user — came from external API
+      })
+      .select('id, full_name, email, status, source, created_at')
+      .single()
+
+    if (error) {
+      console.error('Supabase insert error:', error)
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create lead. Please try again.',
+      })
+    }
+
+    // Optionally log an activity for the new lead
+    await supabase.from('activities').insert({
+      lead_id: data.id,
+      type: 'created',
+      notes: source_detail
+        ? `Lead submitted via Website API (${source_detail})`
+        : 'Lead submitted via Website API',
+      created_by: null,
+    })
+
+    return res.status(201).json({
+      success: true,
+      message: 'Lead created successfully.',
+      lead: {
+        id: data.id,
+        name: data.full_name,
+        email: data.email,
+        status: data.status,
+        business_address: leadAddress || null,
+        website: leadWebsite || null,
+        google_rating: leadRating,
+        google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
+        created_at: data.created_at,
+      },
+    })
+  } catch (err) {
+    console.error('API error:', err)
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    })
+  }
+}
