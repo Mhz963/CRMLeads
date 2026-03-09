@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink } from 'lucide-react'
+import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink, ArrowLeft, MessageSquare, Edit3, Eye, Send } from 'lucide-react'
 import { supabase } from '../services/supabaseClient'
 import './GBMPage.css'
 
@@ -125,7 +125,18 @@ const GBMPage = () => {
   const [nextPageToken, setNextPageToken] = useState(null)
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false)
   const [apiError, setApiError] = useState('')
-  const [selectedBusinessKey, setSelectedBusinessKey] = useState(null)
+  const [statusByPlaceId, setStatusByPlaceId] = useState({})
+  const [viewBusiness, setViewBusiness] = useState(null)
+  const [feedbackInput, setFeedbackInput] = useState('')
+  const [feedbackByKey, setFeedbackByKey] = useState({})
+  const [editingBusiness, setEditingBusiness] = useState(null)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    address: '',
+    contact_no: '',
+    website: '',
+    row_status: '',
+  })
   const nextPageRequestInFlightRef = useRef(false)
 
   function isRlsPolicyMessage(message) {
@@ -139,6 +150,34 @@ const GBMPage = () => {
       return
     }
     setApiError(message || '')
+  }
+
+  async function refreshStatusMap(businesses) {
+    const ids = (businesses || []).map((b) => b.place_id).filter(Boolean)
+    if (!ids.length) {
+      setStatusByPlaceId({})
+      return
+    }
+    const { data: existing, error: existingErr } = await supabase
+      .from('gbm_businesses')
+      .select('place_id')
+      .in('place_id', ids)
+    if (existingErr) {
+      console.error('[GBM status map]', existingErr.message || existingErr)
+      return
+    }
+    const existingSet = new Set((existing || []).map((row) => row.place_id))
+    const next = {}
+    ids.forEach((id) => {
+      next[id] = existingSet.has(id) ? 'old' : 'new'
+    })
+    setStatusByPlaceId(next)
+  }
+
+  const getBusinessStatusLabel = (biz) => {
+    if (mode === 'list') return 'old'
+    if (!biz.place_id) return 'new'
+    return statusByPlaceId[biz.place_id] || 'new'
   }
 
   async function fetchGBMListFromDb() {
@@ -207,6 +246,7 @@ const GBMPage = () => {
       setApiError('')
       setCurrentPage(1)
       setNewModeApiPage(1)
+      refreshStatusMap(data.businesses).catch((err) => console.error('[GBM status map]', err))
     }
   }, [mode, data?.businesses])
 
@@ -226,15 +266,6 @@ const GBMPage = () => {
   const paginatedBusinesses = mode === 'new'
     ? businesses
     : businesses.slice(pageStart, pageStart + entriesPerPage)
-  const selectedBusiness = businesses.find(
-    (biz) => (biz.place_id || `${biz.name}-${biz.address}`) === selectedBusinessKey
-  ) || null
-
-  useEffect(() => {
-    if (!selectedBusinessKey) return
-    const exists = businesses.some((biz) => (biz.place_id || `${biz.name}-${biz.address}`) === selectedBusinessKey)
-    if (!exists) setSelectedBusinessKey(null)
-  }, [businesses, selectedBusinessKey])
 
   useEffect(() => {
     // Prevent impossible state like "Page 2 of 1", which hides all rows.
@@ -258,6 +289,8 @@ const GBMPage = () => {
     setNewModeBusinesses([])
     setNextPageToken(null)
     setApiError('')
+    setStatusByPlaceId({})
+    setViewBusiness(null)
   }
 
   const handleNextPage = async () => {
@@ -282,7 +315,7 @@ const GBMPage = () => {
       setNextPageToken(nextPageData.next_page_token || null)
       setNewModeApiPage((p) => p + 1)
       setCurrentPage((p) => p + 1)
-      setSelectedBusinessKey(null)
+      refreshStatusMap(nextPageData.businesses || []).catch((err) => console.error('[GBM status map]', err))
     } catch (err) {
       setApiErrorSafe(err?.apiErrorMessage || err?.apiStatus || err?.message || 'Failed to load next page.')
     } finally {
@@ -291,9 +324,159 @@ const GBMPage = () => {
     }
   }
 
-  const toggleBusinessDetails = (biz) => {
-    const key = biz.place_id || `${biz.name}-${biz.address}`
-    setSelectedBusinessKey((prev) => (prev === key ? null : key))
+  const openEditModal = (biz) => {
+    setEditingBusiness(biz)
+    setEditForm({
+      name: biz.name || '',
+      address: biz.address || '',
+      contact_no: biz.contact_no || '',
+      website: biz.website || '',
+      row_status: getBusinessStatusLabel(biz),
+    })
+  }
+
+  const saveEditBusiness = async () => {
+    if (!editingBusiness) return
+    const rowKey = editingBusiness.place_id || `${editingBusiness.name}-${editingBusiness.address}`
+    const applyUpdate = (arr) => arr.map((biz) => {
+      const key = biz.place_id || `${biz.name}-${biz.address}`
+      if (key !== rowKey) return biz
+      return {
+        ...biz,
+        name: editForm.name.trim() || biz.name,
+        address: editForm.address.trim(),
+        contact_no: editForm.contact_no.trim() || null,
+        website: editForm.website.trim() || null,
+      }
+    })
+
+    setNewModeBusinesses((prev) => applyUpdate(prev))
+    if (viewBusiness) {
+      const viewKey = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+      if (viewKey === rowKey) {
+        setViewBusiness((prev) => prev ? {
+          ...prev,
+          name: editForm.name.trim() || prev.name,
+          address: editForm.address.trim(),
+          contact_no: editForm.contact_no.trim() || null,
+          website: editForm.website.trim() || null,
+        } : prev)
+      }
+    }
+
+    if (editingBusiness.place_id) {
+      const { error: upsertErr } = await supabase
+        .from('gbm_businesses')
+        .upsert({
+          place_id: editingBusiness.place_id,
+          name: editForm.name.trim() || editingBusiness.name,
+          formatted_address: editForm.address.trim() || null,
+          contact_no: editForm.contact_no.trim() || null,
+          website: editForm.website.trim() || null,
+          business_status: editingBusiness.business_status || null,
+          maps_url: editingBusiness.maps_url || null,
+          rating: editingBusiness.rating,
+          reviews: editingBusiness.reviews ?? 0,
+          types: Array.isArray(editingBusiness.types) ? editingBusiness.types : [],
+          last_query: submittedQuery,
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: 'place_id' })
+      if (upsertErr) console.error('[GBM edit save]', upsertErr.message || upsertErr)
+    }
+    setEditingBusiness(null)
+  }
+
+  const sendFeedback = () => {
+    const text = feedbackInput.trim()
+    if (!text || !viewBusiness) return
+    const key = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+    setFeedbackByKey((prev) => ({
+      ...prev,
+      [key]: [...(prev[key] || []), { text, at: new Date().toISOString() }],
+    }))
+    setFeedbackInput('')
+  }
+
+  if (viewBusiness) {
+    const viewKey = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+    const feedbackItems = feedbackByKey[viewKey] || []
+    const handleBackFromDetails = () => setViewBusiness(null)
+    return (
+      <div className="gbm-page gbm-client-view animate-fade-in">
+        <div className="gbm-header">
+          <div>
+            <h2><MapPinned size={22} /> Client Details</h2>
+            <p>Detailed view and feedback thread.</p>
+          </div>
+          <div className="gbm-header-actions">
+            <button className="btn-outline" onClick={handleBackFromDetails}>
+              <ArrowLeft size={15} />
+              Back
+            </button>
+          </div>
+        </div>
+        <div className="gbm-content-wrap">
+          <div className="gbm-client-card">
+            <div className="gbm-client-grid">
+              <div className="gbm-client-row"><span>Name</span><strong>{viewBusiness.name || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Status</span><strong>{viewBusiness.business_status || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Address</span><strong>{viewBusiness.address || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Contact</span><strong>{viewBusiness.contact_no || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Website</span><strong>{viewBusiness.website || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Row Status</span><strong className={`gbm-mini-pill ${getBusinessStatusLabel(viewBusiness)}`}>{getBusinessStatusLabel(viewBusiness)}</strong></div>
+              <div className="gbm-client-row"><span>Rating</span><strong>{typeof viewBusiness.rating === 'number' ? viewBusiness.rating : '—'}</strong></div>
+              <div className="gbm-client-row"><span>Reviews</span><strong>{viewBusiness.reviews ?? 0}</strong></div>
+            </div>
+            <div className="gbm-client-links">
+              <span>Google Maps</span>
+              {viewBusiness.maps_url ? (
+                <a href={viewBusiness.maps_url} target="_blank" rel="noopener noreferrer" className="map-link">
+                  Open <ExternalLink size={12} />
+                </a>
+              ) : '—'}
+            </div>
+          </div>
+          <aside className="gbm-side-panel open gbm-feedback-panel">
+            <div className="gbm-side-panel-header">
+              <h3><MessageSquare size={16} /> Feedback</h3>
+              <span className="gbm-feedback-count">{feedbackItems.length}</span>
+            </div>
+            <div className="gbm-side-panel-body">
+              <div className="gbm-feedback-thread">
+                {feedbackItems.length === 0 ? (
+                  <p className="gbm-feedback-empty">No feedback yet. Start the conversation.</p>
+                ) : (
+                  feedbackItems.map((item, idx) => (
+                    <div key={`${item.at}-${idx}`} className="gbm-feedback-bubble">
+                      <div className="gbm-feedback-text">{item.text}</div>
+                      <small className="gbm-feedback-time">{new Date(item.at).toLocaleString()}</small>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="gbm-feedback-input-wrap">
+                <input
+                  value={feedbackInput}
+                  className="gbm-feedback-input"
+                  onChange={(e) => setFeedbackInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      sendFeedback()
+                    }
+                  }}
+                  placeholder="Write feedback and press Enter..."
+                />
+                <button type="button" className="btn-primary-action gbm-feedback-send" onClick={sendFeedback}>
+                  <Send size={14} />
+                  Send
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -304,7 +487,7 @@ const GBMPage = () => {
           <p>
             {mode === 'new'
               ? 'Google Business data fetched by query and displayed inside your CRM.'
-              : 'Saved GBM entries loaded from your Supabase database.'}
+              : ''}
           </p>
         </div>
         <div className="gbm-header-actions">
@@ -408,7 +591,7 @@ const GBMPage = () => {
                   <th>Rating</th>
                   <th>Reviews</th>
                   <th>Status</th>
-                  <th>Details</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -417,7 +600,6 @@ const GBMPage = () => {
                 ) : (
                   paginatedBusinesses.map((biz) => {
                     const rowKey = biz.place_id || `${biz.name}-${biz.address}`
-                    const isOpen = selectedBusinessKey === rowKey
                     return (
                       <tr key={rowKey}>
                         <td className="biz-name">{biz.name}</td>
@@ -440,15 +622,26 @@ const GBMPage = () => {
                           ) : '—'}
                         </td>
                         <td>{biz.reviews ?? 0}</td>
-                        <td>{biz.business_status || '—'}</td>
+                        <td>{getBusinessStatusLabel(biz)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className={`details-toggle-btn ${isOpen ? 'open' : ''}`}
-                            onClick={() => toggleBusinessDetails(biz)}
-                          >
-                            {isOpen ? 'Close' : 'Open'}
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              className="details-toggle-btn"
+                              onClick={() => setViewBusiness(biz)}
+                              title="View details page"
+                            >
+                              <Eye size={13} /> View
+                            </button>
+                            <button
+                              type="button"
+                              className="details-toggle-btn"
+                              onClick={() => openEditModal(biz)}
+                              title="Edit details"
+                            >
+                              <Edit3 size={13} /> Edit
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -457,51 +650,6 @@ const GBMPage = () => {
               </tbody>
             </table>
           </div>
-
-          <aside className={`gbm-side-panel ${selectedBusiness ? 'open' : ''}`}>
-            {selectedBusiness ? (
-              <>
-                <div className="gbm-side-panel-header">
-                  <h3>{selectedBusiness.name || 'Business Details'}</h3>
-                  <button
-                    type="button"
-                    className="panel-close-btn"
-                    onClick={() => setSelectedBusinessKey(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="gbm-side-panel-body">
-                  <p><strong>Address:</strong> {selectedBusiness.address || '—'}</p>
-                  <p><strong>Contact:</strong> {selectedBusiness.contact_no || '—'}</p>
-                  <p><strong>Email:</strong> {selectedBusiness.email || '—'}</p>
-                  <p>
-                    <strong>Website:</strong>{' '}
-                    {selectedBusiness.website ? (
-                      <a href={selectedBusiness.website} target="_blank" rel="noopener noreferrer">
-                        {selectedBusiness.website}
-                      </a>
-                    ) : '—'}
-                  </p>
-                  <p>
-                    <strong>Google Maps:</strong>{' '}
-                    {selectedBusiness.maps_url ? (
-                      <a href={selectedBusiness.maps_url} target="_blank" rel="noopener noreferrer" className="map-link">
-                        Open <ExternalLink size={12} />
-                      </a>
-                    ) : '—'}
-                  </p>
-                  <p><strong>Status:</strong> {selectedBusiness.business_status || '—'}</p>
-                  <p><strong>Rating:</strong> {typeof selectedBusiness.rating === 'number' ? selectedBusiness.rating : '—'}</p>
-                  <p><strong>Reviews:</strong> {selectedBusiness.reviews ?? 0}</p>
-                </div>
-              </>
-            ) : (
-              <div className="gbm-side-panel-empty">
-                Select a business row and click <strong>Open</strong> to view details.
-              </div>
-            )}
-          </aside>
         </div>
       )}
 
@@ -543,6 +691,41 @@ const GBMPage = () => {
           >
             {mode === 'new' ? (isLoadingNextPage ? 'Loading...' : 'Next Page') : 'Next'}
           </button>
+        </div>
+      )}
+      {editingBusiness && (
+        <div className="modal-overlay" onClick={() => setEditingBusiness(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Business</h3>
+            </div>
+            <div className="modal-form">
+              <div className="form-field">
+                <label>Name</label>
+                <input value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label>Address</label>
+                <input value={editForm.address} onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label>Contact</label>
+                <input value={editForm.contact_no} onChange={(e) => setEditForm((prev) => ({ ...prev, contact_no: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label>Website</label>
+                <input value={editForm.website} onChange={(e) => setEditForm((prev) => ({ ...prev, website: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label>Status</label>
+                <input value={editForm.row_status} disabled />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-outline" onClick={() => setEditingBusiness(null)}>Cancel</button>
+                <button type="button" className="btn-primary-action" onClick={saveEditBusiness}>Save</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
