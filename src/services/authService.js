@@ -146,3 +146,32 @@ export async function removeMember(userId) {
 
   if (error) throw error
 }
+
+export async function adminCreateUser({ email, password, full_name, role }) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw new Error('Please sign in again.')
+
+  const response = await fetch('/api/admin-create-user', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ email, password, full_name, role }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || 'Failed to create user.')
+  }
+
+  return payload.user
+}
