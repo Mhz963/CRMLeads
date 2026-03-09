@@ -67,9 +67,14 @@ const LeadsPage = () => {
 
   const deleteMutation = useMutation({
     mutationFn: deleteLead,
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData(['leads'], (prev = []) => prev.filter((lead) => lead.id !== deletedId))
       queryClient.invalidateQueries({ queryKey: ['leads'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+    },
+    onError: (err) => {
+      console.error('Failed to delete lead:', err)
+      alert(err?.message || 'Failed to delete lead')
     },
   })
 

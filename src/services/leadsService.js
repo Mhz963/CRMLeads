@@ -61,6 +61,38 @@ async function fallbackMoveLeadStage(id, newStatus) {
   return normalizeLeadRecord(payload.lead)
 }
 
+async function fallbackDeleteLead(id) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+
+  const response = await fetch('/api/delete-lead', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ id }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || !payload.success) {
+    if (response.status === 404 || response.status === 405) {
+      throw new Error(
+        'Delete fallback endpoint is not deployed yet (HTTP 404/405). Deploy latest backend.'
+      )
+    }
+    throw new Error(payload.error || `Failed to delete lead (HTTP ${response.status})`)
+  }
+}
+
 /* ─────────────────────  CRUD  ───────────────────── */
 
 export async function fetchLeads() {
@@ -124,8 +156,17 @@ export async function updateLead(id, updates) {
 }
 
 export async function deleteLead(id) {
-  const { error } = await supabase.from('leads').delete().eq('id', id)
-  if (error) throw error
+  const { data, error } = await supabase
+    .from('leads')
+    .delete()
+    .eq('id', id)
+    .select('id')
+
+  if (!error && Array.isArray(data) && data.length > 0) return
+
+  // RLS can silently affect 0 rows without an explicit error.
+  // If direct delete did not actually remove a row, use secure server fallback.
+  await fallbackDeleteLead(id)
 }
 
 export async function moveLeadStage(id, newStatus) {
