@@ -540,7 +540,7 @@ const GBMPage = () => {
           <h2><MapPinned size={22} /> GBM Leads</h2>
           <p>
             {mode === 'new'
-              ? 'Google Business data fetched by query and displayed inside your CRM.'
+              ? ''
               : ''}
           </p>
         </div>
