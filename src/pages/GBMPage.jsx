@@ -175,9 +175,54 @@ const GBMPage = () => {
   }
 
   const getBusinessStatusLabel = (biz) => {
+    const manual = (biz?.business_status || '').toLowerCase()
+    if (manual === 'old' || manual === 'new') return manual
     if (mode === 'list') return 'old'
     if (!biz.place_id) return 'new'
     return statusByPlaceId[biz.place_id] || 'new'
+  }
+
+  const applyBusinessPatch = (targetBiz, patch) => {
+    const targetKey = targetBiz.place_id || `${targetBiz.name}-${targetBiz.address}`
+    setNewModeBusinesses((prev) => prev.map((biz) => {
+      const key = biz.place_id || `${biz.name}-${biz.address}`
+      return key === targetKey ? { ...biz, ...patch } : biz
+    }))
+    if (viewBusiness) {
+      const viewKey = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+      if (viewKey === targetKey) {
+        setViewBusiness((prev) => (prev ? { ...prev, ...patch } : prev))
+      }
+    }
+  }
+
+  const handleManualStatusChange = async (biz, nextStatus) => {
+    if (!nextStatus || !['new', 'old'].includes(nextStatus)) return
+
+    applyBusinessPatch(biz, { business_status: nextStatus })
+    if (biz.place_id) {
+      setStatusByPlaceId((prev) => ({ ...prev, [biz.place_id]: nextStatus }))
+      const { error: upsertErr } = await supabase
+        .from('gbm_businesses')
+        .upsert({
+          place_id: biz.place_id,
+          name: biz.name || null,
+          formatted_address: biz.address || null,
+          contact_no: biz.contact_no || null,
+          website: biz.website || null,
+          business_status: nextStatus,
+          maps_url: biz.maps_url || null,
+          rating: biz.rating,
+          reviews: biz.reviews ?? 0,
+          types: Array.isArray(biz.types) ? biz.types : [],
+          last_query: submittedQuery || null,
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: 'place_id' })
+      if (upsertErr) {
+        console.error('[GBM status update]', upsertErr.message || upsertErr)
+        setApiErrorSafe(upsertErr.message || 'Failed to save status update.')
+      }
+    }
   }
 
   async function fetchGBMListFromDb() {
@@ -347,6 +392,7 @@ const GBMPage = () => {
         address: editForm.address.trim(),
         contact_no: editForm.contact_no.trim() || null,
         website: editForm.website.trim() || null,
+        business_status: editForm.row_status,
       }
     })
 
@@ -360,8 +406,16 @@ const GBMPage = () => {
           address: editForm.address.trim(),
           contact_no: editForm.contact_no.trim() || null,
           website: editForm.website.trim() || null,
+          business_status: editForm.row_status,
         } : prev)
       }
+    }
+
+    if (editingBusiness.place_id) {
+      setStatusByPlaceId((prev) => ({
+        ...prev,
+        [editingBusiness.place_id]: editForm.row_status,
+      }))
     }
 
     if (editingBusiness.place_id) {
@@ -373,7 +427,7 @@ const GBMPage = () => {
           formatted_address: editForm.address.trim() || null,
           contact_no: editForm.contact_no.trim() || null,
           website: editForm.website.trim() || null,
-          business_status: editingBusiness.business_status || null,
+          business_status: editForm.row_status || null,
           maps_url: editingBusiness.maps_url || null,
           rating: editingBusiness.rating,
           reviews: editingBusiness.reviews ?? 0,
@@ -622,9 +676,18 @@ const GBMPage = () => {
                           ) : '—'}
                         </td>
                         <td>{biz.reviews ?? 0}</td>
-                        <td>{getBusinessStatusLabel(biz)}</td>
                         <td>
-                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <select
+                            className="gbm-status-select"
+                            value={getBusinessStatusLabel(biz)}
+                            onChange={(e) => handleManualStatusChange(biz, e.target.value)}
+                          >
+                            <option value="new">new</option>
+                            <option value="old">old</option>
+                          </select>
+                        </td>
+                        <td>
+                          <div className="gbm-row-actions">
                             <button
                               type="button"
                               className="details-toggle-btn"
@@ -718,7 +781,10 @@ const GBMPage = () => {
               </div>
               <div className="form-field">
                 <label>Status</label>
-                <input value={editForm.row_status} disabled />
+                <select value={editForm.row_status} onChange={(e) => setEditForm((prev) => ({ ...prev, row_status: e.target.value }))}>
+                  <option value="new">new</option>
+                  <option value="old">old</option>
+                </select>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn-outline" onClick={() => setEditingBusiness(null)}>Cancel</button>
