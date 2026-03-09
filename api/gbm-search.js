@@ -12,8 +12,6 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-const DEFAULT_REGION = 'nz'
-
 function getSupabasePublic() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase public config')
@@ -44,19 +42,11 @@ function parseMaybeJson(input) {
   return input
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function fetchTextSearchPage({ query, region, pageToken }) {
+async function fetchTextSearchPage({ query, region, pageToken = null }) {
   const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json')
-  if (pageToken) {
-    // Google requires pagetoken for subsequent pages.
-    searchUrl.searchParams.set('pagetoken', pageToken)
-  } else {
-    searchUrl.searchParams.set('query', query)
-    searchUrl.searchParams.set('region', region)
-  }
+  if (query) searchUrl.searchParams.set('query', query)
+  if (region) searchUrl.searchParams.set('region', region)
+  if (pageToken) searchUrl.searchParams.set('pagetoken', pageToken)
   searchUrl.searchParams.set('key', googleMapsApiKey)
 
   const resp = await fetch(searchUrl.toString())
@@ -65,35 +55,6 @@ async function fetchTextSearchPage({ query, region, pageToken }) {
   }
   const data = await resp.json()
   return { ok: true, status: resp.status, data }
-}
-
-async function fetchTextSearchWithRetry({ query, region, pageToken }) {
-  let lastTriedToken = pageToken || null
-  const retryDelays = pageToken
-    // Google docs: wait a few seconds before first next_page_token request.
-    // Use a longer activation window for flaky token propagation.
-    ? [4500, 3000, 4500, 6000, 8000]
-    : [0]
-
-  let fetchResult = null
-  let mapsData = null
-
-  for (let i = 0; i < retryDelays.length; i += 1) {
-    const delay = retryDelays[i]
-    if (delay > 0) await sleep(delay)
-
-    fetchResult = await fetchTextSearchPage({ query, region, pageToken })
-    if (!fetchResult.ok) {
-      return { fetchResult, mapsData: null, lastTriedToken }
-    }
-
-    mapsData = fetchResult.data
-    if (mapsData.status !== 'INVALID_REQUEST') {
-      return { fetchResult, mapsData, lastTriedToken }
-    }
-  }
-
-  return { fetchResult, mapsData, lastTriedToken }
 }
 
 async function fetchPlaceDetails(placeId) {
@@ -143,41 +104,6 @@ function toBusiness(place, details) {
   }
 }
 
-async function readTokenState(supabaseAdmin, query, region) {
-  const { data, error } = await supabaseAdmin
-    .from('gbm_query_state')
-    .select('next_page_token, hit_count')
-    .eq('query', query)
-    .eq('region', region)
-    .maybeSingle()
-
-  if (error) return null
-  return data || null
-}
-
-async function writeTokenState(supabaseAdmin, {
-  query,
-  region,
-  nextPageToken,
-  lastStatus,
-  lastError = null,
-  lastUsedToken = null,
-  hitCount = 0,
-}) {
-  await supabaseAdmin
-    .from('gbm_query_state')
-    .upsert({
-      query,
-      region,
-      next_page_token: nextPageToken || null,
-      last_status: lastStatus || null,
-      last_error: lastError,
-      last_used_token: lastUsedToken,
-      hit_count: hitCount,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'query,region' })
-}
-
 export default async function handler(req, res) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v))
 
@@ -208,81 +134,39 @@ export default async function handler(req, res) {
 
     const body = parseMaybeJson(req.body)
     const query = (body.query || 'plumber in Auckland New Zealand').trim()
-    const region = DEFAULT_REGION
-    const requestedPageToken = (body.page_token || '').trim()
-    const advanceToken = body.advance_token === true || body.advance_token === 'true'
+    const region = (body.region || 'nz').trim()
+    const pageToken = (
+      body.pagetoken ||
+      body.page_token ||
+      body.next_page_token ||
+      ''
+    ).trim() || null
     const maxResultsRaw = Number(body.max_results || 20)
     const maxResults = Number.isFinite(maxResultsRaw)
       ? Math.max(1, Math.min(60, maxResultsRaw))
       : 20
 
     const supabaseAdmin = getSupabaseAdmin()
-    const tokenState = await readTokenState(supabaseAdmin, query, region)
-    const effectivePageToken = requestedPageToken || (advanceToken ? (tokenState?.next_page_token || '') : '')
-    const nextHitCount = Number(tokenState?.hit_count || 0) + 1
 
-    const tokenCandidates = []
-    if (requestedPageToken) tokenCandidates.push(requestedPageToken)
-    if (advanceToken && tokenState?.next_page_token) tokenCandidates.push(tokenState.next_page_token)
-    if (!tokenCandidates.length) tokenCandidates.push('')
-
-    let fetchResult = null
-    let mapsData = null
-    let usedToken = null
-    for (const candidate of tokenCandidates) {
-      const attempted = await fetchTextSearchWithRetry({
-        query,
-        region,
-        pageToken: candidate,
-      })
-      fetchResult = attempted.fetchResult
-      mapsData = attempted.mapsData
-      usedToken = attempted.lastTriedToken
-      if (!fetchResult?.ok) break
-
-      // Accept valid successful statuses immediately.
-      if (mapsData?.status === 'OK' || mapsData?.status === 'ZERO_RESULTS') {
-        break
-      }
-
-      // If token is invalid, try the next candidate token (if any).
-      if (mapsData?.status === 'INVALID_REQUEST') {
-        continue
-      }
-
-      // Non-retriable Google status for this request.
-      break
-    }
-
+    const fetchResult = await fetchTextSearchPage({
+      query,
+      region,
+      pageToken,
+    })
     if (!fetchResult.ok) {
-      await writeTokenState(supabaseAdmin, {
-        query,
-        region,
-        nextPageToken: tokenState?.next_page_token || null,
-        lastStatus: 'HTTP_ERROR',
-        lastError: `Google Maps API failed with status ${fetchResult.status}.`,
-        lastUsedToken: usedToken || effectivePageToken || null,
-        hitCount: nextHitCount,
-      })
       return res.status(502).json({
         success: false,
         error: `Google Maps API failed with status ${fetchResult.status}.`,
       })
     }
 
+    const mapsData = fetchResult.data
     if (mapsData.status !== 'OK' && mapsData.status !== 'ZERO_RESULTS') {
-      await writeTokenState(supabaseAdmin, {
-        query,
-        region,
-        nextPageToken: tokenState?.next_page_token || null,
-        lastStatus: mapsData.status,
-        lastError: mapsData.error_message || null,
-        lastUsedToken: usedToken || effectivePageToken || null,
-        hitCount: nextHitCount,
-      })
       return res.status(400).json({
         success: false,
         error: `Google Maps error: ${mapsData.status}${mapsData.error_message ? ` - ${mapsData.error_message}` : ''}`,
+        status: mapsData.status,
+        error_message: mapsData.error_message || null,
       })
     }
 
@@ -346,16 +230,6 @@ export default async function handler(req, res) {
       }
     }
 
-    await writeTokenState(supabaseAdmin, {
-      query,
-      region,
-      nextPageToken: mapsData.next_page_token || null,
-      lastStatus: mapsData.status || 'OK',
-      lastError: null,
-      lastUsedToken: usedToken || effectivePageToken || null,
-      hitCount: nextHitCount,
-    })
-
     return res.status(200).json({
       success: true,
       query,
@@ -363,8 +237,8 @@ export default async function handler(req, res) {
       total: enriched.length,
       inserted_count,
       updated_count,
-      token_used: usedToken || effectivePageToken || null,
-      from_stored_token: advanceToken && !requestedPageToken,
+      token_used: pageToken,
+      from_stored_token: Boolean(pageToken),
       next_page_token: mapsData.next_page_token || null,
       businesses: enriched,
     })

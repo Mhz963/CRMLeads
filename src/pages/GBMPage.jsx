@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink } from 'lucide-react'
@@ -65,99 +65,21 @@ async function fetchPlaceDetailsClient({ placeId, googleKey }) {
   return payload.result || null
 }
 
-async function fetchGBMDirectFromGoogle({ query, maxResults, pageToken = '' }) {
-  // Fallback only if server endpoint is not deployed yet.
-  // In localhost dev, use Vite proxy to avoid browser CORS.
-  const googleKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  if (!googleKey) {
-    throw new Error(
-      'Missing VITE_GOOGLE_MAPS_API_KEY in local .env. Add it and restart npm run dev.'
-    )
-  }
-
-  const isLocalhost =
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
-  const baseUrl = isLocalhost
-    ? `${window.location.origin}/__gbm_proxy/textsearch`
-    : 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-
-  const url = new URL(baseUrl)
-  if (pageToken) {
-    url.searchParams.set('pagetoken', pageToken)
-  } else {
-    url.searchParams.set('query', query)
-    url.searchParams.set('region', 'nz')
-  }
-  url.searchParams.set('key', googleKey)
-
-  async function doFetch() {
-    const response = await fetch(url.toString())
-    const raw = await response.text()
-    let payload = {}
-    try {
-      payload = raw ? JSON.parse(raw) : {}
-    } catch {
-      payload = {}
-    }
-    return { response, payload }
-  }
-
-  // Google next_page_token is not instantly valid.
-  // Delay before first token request, then retry progressively.
-  const retryDelays = pageToken ? [4500, 3000, 4500, 6000, 8000] : [0]
-  let response = null
-  let payload = {}
-  for (let i = 0; i < retryDelays.length; i += 1) {
-    const delay = retryDelays[i]
-    if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    }
-    const fetched = await doFetch()
-    response = fetched.response
-    payload = fetched.payload
-    if (payload.status !== 'INVALID_REQUEST') break
-  }
-
-  if (!response.ok || (payload.status !== 'OK' && payload.status !== 'ZERO_RESULTS')) {
-    throw new Error(payload.error_message || payload.status || `Google API failed (HTTP ${response.status}).`)
-  }
-
-  const sliced = (payload.results || []).slice(0, maxResults)
-  const businesses = await Promise.all(
-    sliced.map(async (place) => {
-      const details = await fetchPlaceDetailsClient({
-        placeId: place.place_id,
-        googleKey,
-      })
-      const base = mapGooglePlace(place)
-      return {
-        ...base,
-        name: details?.name || base.name,
-        address: details?.formatted_address || base.address,
-        website: details?.website || base.website,
-        contact_no:
-          details?.international_phone_number ||
-          details?.formatted_phone_number ||
-          base.contact_no,
-        maps_url: details?.url || base.maps_url,
-      }
-    })
-  )
-
-  return {
-    success: true,
-    query,
-    total: businesses.length,
-    next_page_token: payload.next_page_token || null,
-    businesses,
-  }
-}
-
-async function fetchGBMResults({ query, maxResults, pageToken = '', advanceToken = false }) {
+async function fetchGBMResults({ query, region, maxResults, pageToken = null }) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData?.session?.access_token
   if (!token) throw new Error('Please sign in again to use GBM search.')
+
+  const requestBody = {
+    query,
+    region,
+    max_results: maxResults,
+  }
+  if (pageToken) {
+    requestBody.pagetoken = pageToken
+    requestBody.page_token = pageToken
+    requestBody.next_page_token = pageToken
+  }
 
   const response = await fetch('/api/gbm-search', {
     method: 'POST',
@@ -165,14 +87,8 @@ async function fetchGBMResults({ query, maxResults, pageToken = '', advanceToken
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      query,
-      max_results: maxResults,
-      page_token: pageToken,
-      advance_token: advanceToken,
-    }),
+    body: JSON.stringify(requestBody),
   })
-
   const raw = await response.text()
   let payload = {}
   try {
@@ -181,23 +97,19 @@ async function fetchGBMResults({ query, maxResults, pageToken = '', advanceToken
     payload = {}
   }
 
-  // If endpoint is not yet deployed (404/405), fallback to direct Google fetch.
-  if (response.status === 404 || response.status === 405) {
-    // In production domain this direct fallback can still be blocked by CORS.
-    // We keep it primarily for localhost dev via Vite proxy.
-    return fetchGBMDirectFromGoogle({
-      query,
-      maxResults,
-      pageToken,
-    })
-  }
-
   if (!response.ok || !payload.success) {
-    throw new Error(payload.error || `Failed to fetch GBM data (HTTP ${response.status}).`)
+    const err = new Error(
+      payload.error_message ||
+      payload.status ||
+      payload.error ||
+      `Failed to fetch GBM data (HTTP ${response.status}).`
+    )
+    err.apiStatus = payload.status || null
+    err.apiErrorMessage = payload.error_message || null
+    err.httpStatus = response.status
+    throw err
   }
 
-  console.log('[GBM] token_used:', payload?.token_used || pageToken || null)
-  console.log('[GBM] next_page_token:', payload?.next_page_token || null)
   return payload
 }
 
@@ -206,13 +118,42 @@ const GBMPage = () => {
   const mode = searchParams.get('view') === 'new' ? 'new' : 'list'
   const [query, setQuery] = useState('plumber in Auckland New Zealand')
   const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
-  const [searchRunId, setSearchRunId] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
+  const [newModeApiPage, setNewModeApiPage] = useState(1)
   const [newModeBusinesses, setNewModeBusinesses] = useState([])
-  const [newModeNextToken, setNewModeNextToken] = useState('')
-  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false)
+  const [nextPageToken, setNextPageToken] = useState(null)
+  const [isLoadingNextPage, setIsLoadingNextPage] = useState(false)
+  const [apiError, setApiError] = useState('')
   const [selectedBusinessKey, setSelectedBusinessKey] = useState(null)
+  const nextPageRequestInFlightRef = useRef(false)
+
+  async function persistBusinessesToDb(businesses, lastQuery) {
+    if (!Array.isArray(businesses) || businesses.length === 0) return
+    const rows = businesses
+      .filter((biz) => biz.place_id)
+      .map((biz) => ({
+        place_id: biz.place_id,
+        name: biz.name || null,
+        formatted_address: biz.address || null,
+        contact_no: biz.contact_no || null,
+        website: biz.website || null,
+        rating: typeof biz.rating === 'number' ? biz.rating : null,
+        reviews: Number.isFinite(biz.reviews) ? biz.reviews : 0,
+        business_status: biz.business_status || null,
+        maps_url: biz.maps_url || null,
+        types: Array.isArray(biz.types) ? biz.types : [],
+        last_query: lastQuery || null,
+        last_seen_at: new Date().toISOString(),
+      }))
+    if (!rows.length) return
+    const { error: upsertErr } = await supabase
+      .from('gbm_businesses')
+      .upsert(rows, { onConflict: 'place_id' })
+    if (upsertErr) {
+      throw new Error(upsertErr.message || 'Failed to save fetched businesses.')
+    }
+  }
 
   async function fetchGBMListFromDb() {
     const { data, error: dbErr } = await supabase
@@ -260,30 +201,48 @@ const GBMPage = () => {
   }
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['gbm-data', mode, submittedQuery, searchRunId],
+    queryKey: ['gbm-data', mode, submittedQuery],
     queryFn: () => (
       mode === 'new'
-        ? fetchGBMResults({ query: submittedQuery, maxResults: 60 })
+        ? fetchGBMResults({ query: submittedQuery, region: 'nz', maxResults: 60 })
         : fetchGBMListFromDb()
     ),
   })
 
   useEffect(() => {
     setCurrentPage(1)
+    setNewModeApiPage(1)
   }, [mode])
 
   useEffect(() => {
     if (mode === 'new' && data?.businesses) {
       setNewModeBusinesses(data.businesses)
-      setNewModeNextToken(data.next_page_token || '')
+      setNextPageToken(data.next_page_token || null)
+      setApiError('')
       setCurrentPage(1)
+      setNewModeApiPage(1)
+      persistBusinessesToDb(data.businesses, submittedQuery).catch((err) => {
+        setApiError(err?.message || 'Failed to save fetched businesses.')
+      })
     }
-  }, [mode, data?.businesses, data?.next_page_token])
+  }, [mode, data?.businesses, submittedQuery])
+
+  useEffect(() => {
+    if (mode !== 'new') {
+      setNextPageToken(null)
+      setIsLoadingNextPage(false)
+      setApiError('')
+    }
+  }, [mode])
 
   const businesses = mode === 'new' ? newModeBusinesses : (data?.businesses || [])
-  const totalPages = Math.max(1, Math.ceil(businesses.length / entriesPerPage))
+  const totalPages = mode === 'new'
+    ? Math.max(1, newModeApiPage)
+    : Math.max(1, Math.ceil(businesses.length / entriesPerPage))
   const pageStart = (currentPage - 1) * entriesPerPage
-  const paginatedBusinesses = businesses.slice(pageStart, pageStart + entriesPerPage)
+  const paginatedBusinesses = mode === 'new'
+    ? businesses
+    : businesses.slice(pageStart, pageStart + entriesPerPage)
   const selectedBusiness = businesses.find(
     (biz) => (biz.place_id || `${biz.name}-${biz.address}`) === selectedBusinessKey
   ) || null
@@ -296,10 +255,11 @@ const GBMPage = () => {
 
   useEffect(() => {
     // Prevent impossible state like "Page 2 of 1", which hides all rows.
+    if (mode === 'new') return
     if (currentPage > totalPages) {
       setCurrentPage(totalPages)
     }
-  }, [currentPage, totalPages])
+  }, [mode, currentPage, totalPages])
 
   const avgRating = useMemo(() => {
     const rated = businesses.filter((b) => typeof b.rating === 'number')
@@ -310,62 +270,42 @@ const GBMPage = () => {
   const onSearch = (e) => {
     e.preventDefault()
     setSubmittedQuery(query.trim() || 'plumber in Auckland New Zealand')
-    setSearchRunId((prev) => prev + 1)
     setCurrentPage(1)
+    setNewModeApiPage(1)
     setNewModeBusinesses([])
-    setNewModeNextToken('')
-  }
-
-  const fetchNextGoogleBatch = async () => {
-    if (!newModeNextToken || mode !== 'new') return 0
-    console.log('[GBM] Requesting next page token (len):', newModeNextToken.length)
-    setIsFetchingNextPage(true)
-    try {
-      const nextData = await fetchGBMResults({
-        query: submittedQuery,
-        maxResults: 20,
-        // Send client token first; server can fallback to stored token if needed.
-        pageToken: newModeNextToken,
-        advanceToken: true,
-      })
-      const incoming = nextData?.businesses || []
-      if (!incoming.length) {
-        setNewModeNextToken(nextData?.next_page_token || '')
-        return 0
-      }
-
-      setNewModeBusinesses((prev) => {
-        const seen = new Set(prev.map((b) => b.place_id || `${b.name}-${b.address}`))
-        const merged = [...prev]
-        incoming.forEach((b) => {
-          const key = b.place_id || `${b.name}-${b.address}`
-          if (!seen.has(key)) {
-            seen.add(key)
-            merged.push(b)
-          }
-        })
-        return merged
-      })
-      setNewModeNextToken(nextData?.next_page_token || '')
-      return incoming.length
-    } catch (err) {
-      console.error('[GBM] Failed to fetch next page:', err)
-      return 0
-    } finally {
-      setIsFetchingNextPage(false)
-    }
+    setNextPageToken(null)
+    setApiError('')
   }
 
   const handleNextPage = async () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((p) => p + 1)
+    if (mode !== 'new') {
+      if (currentPage < totalPages) setCurrentPage((p) => p + 1)
       return
     }
-    if (mode === 'new' && newModeNextToken) {
-      const added = await fetchNextGoogleBatch()
-      if (added > 0) {
-        setCurrentPage((p) => p + 1)
-      }
+
+    if (!nextPageToken || isLoadingNextPage || nextPageRequestInFlightRef.current) return
+
+    nextPageRequestInFlightRef.current = true
+    setIsLoadingNextPage(true)
+    setApiError('')
+    try {
+      const nextPageData = await fetchGBMResults({
+        query: submittedQuery,
+        region: 'nz',
+        pageToken: nextPageToken,
+        maxResults: 20,
+      })
+      setNewModeBusinesses(nextPageData.businesses || [])
+      setNextPageToken(nextPageData.next_page_token || null)
+      setNewModeApiPage((p) => p + 1)
+      setCurrentPage((p) => p + 1)
+      setSelectedBusinessKey(null)
+      await persistBusinessesToDb(nextPageData.businesses || [], submittedQuery)
+    } catch (err) {
+      setApiError(err?.apiErrorMessage || err?.apiStatus || err?.message || 'Failed to load next page.')
+    } finally {
+      setIsLoadingNextPage(false)
+      nextPageRequestInFlightRef.current = false
     }
   }
 
@@ -459,15 +399,14 @@ const GBMPage = () => {
           </span>
         )}
       </div>
-
       {isLoading ? (
         <div className="gbm-loading">
           <Loader2 size={26} className="spinning" />
-          <span>Loading GBM data...</span>
+          <span>{mode === 'new' ? 'Loading first page...' : 'Loading GBM data...'}</span>
         </div>
       ) : isError ? (
         <div className="gbm-error">
-          <span>{error?.message || 'Failed to fetch GBM businesses.'}</span>
+          <span>{error?.apiErrorMessage || error?.apiStatus || error?.message || 'Failed to fetch GBM businesses.'}</span>
         </div>
       ) : (
         <div className="gbm-content-wrap">
@@ -580,29 +519,43 @@ const GBMPage = () => {
         </div>
       )}
 
+      {mode === 'new' && isLoadingNextPage && !isLoading && (
+        <div className="gbm-loading">
+          <Loader2 size={18} className="spinning" />
+          <span>Loading next page...</span>
+        </div>
+      )}
+
+      {mode === 'new' && apiError && !isLoading && (
+        <div className="gbm-error">
+          <span>{apiError}</span>
+        </div>
+      )}
+
       {businesses.length > 0 && (
         <div className="gbm-pagination">
           <button
             className="btn-outline"
             type="button"
-            disabled={currentPage <= 1}
+            disabled={mode === 'new' || currentPage <= 1}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
           >
             Prev
           </button>
           <span>
-            Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+            Page <strong>{mode === 'new' ? newModeApiPage : currentPage}</strong> of <strong>{totalPages}</strong>
           </span>
           <button
             className="btn-outline"
             type="button"
             disabled={
-              isFetchingNextPage ||
-              (currentPage >= totalPages && !(mode === 'new' && newModeNextToken))
+              mode === 'new'
+                ? !nextPageToken || isLoadingNextPage
+                : currentPage >= totalPages
             }
             onClick={handleNextPage}
           >
-            {isFetchingNextPage ? 'Loading…' : 'Next'}
+            {mode === 'new' ? (isLoadingNextPage ? 'Loading...' : 'Next Page') : 'Next'}
           </button>
         </div>
       )}

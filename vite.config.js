@@ -8,6 +8,11 @@ export default defineConfig({
     // In local dev, Vite does not run Vercel serverless functions from /api.
     // Proxy /api requests to deployed backend so GBM and form APIs work on localhost.
     proxy: {
+      '/maps': {
+        target: 'https://maps.googleapis.com',
+        changeOrigin: true,
+        secure: true,
+      },
       '/api': {
         target: 'https://crm-leads-beige.vercel.app',
         changeOrigin: true,
