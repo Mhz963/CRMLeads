@@ -128,31 +128,17 @@ const GBMPage = () => {
   const [selectedBusinessKey, setSelectedBusinessKey] = useState(null)
   const nextPageRequestInFlightRef = useRef(false)
 
-  async function persistBusinessesToDb(businesses, lastQuery) {
-    if (!Array.isArray(businesses) || businesses.length === 0) return
-    const rows = businesses
-      .filter((biz) => biz.place_id)
-      .map((biz) => ({
-        place_id: biz.place_id,
-        name: biz.name || null,
-        formatted_address: biz.address || null,
-        contact_no: biz.contact_no || null,
-        website: biz.website || null,
-        rating: typeof biz.rating === 'number' ? biz.rating : null,
-        reviews: Number.isFinite(biz.reviews) ? biz.reviews : 0,
-        business_status: biz.business_status || null,
-        maps_url: biz.maps_url || null,
-        types: Array.isArray(biz.types) ? biz.types : [],
-        last_query: lastQuery || null,
-        last_seen_at: new Date().toISOString(),
-      }))
-    if (!rows.length) return
-    const { error: upsertErr } = await supabase
-      .from('gbm_businesses')
-      .upsert(rows, { onConflict: 'place_id' })
-    if (upsertErr) {
-      throw new Error(upsertErr.message || 'Failed to save fetched businesses.')
+  function isRlsPolicyMessage(message) {
+    return typeof message === 'string' && message.toLowerCase().includes('row-level security policy')
+  }
+
+  function setApiErrorSafe(message) {
+    if (isRlsPolicyMessage(message)) {
+      console.error('[GBM RLS]', message)
+      setApiError('')
+      return
     }
+    setApiError(message || '')
   }
 
   async function fetchGBMListFromDb() {
@@ -221,11 +207,8 @@ const GBMPage = () => {
       setApiError('')
       setCurrentPage(1)
       setNewModeApiPage(1)
-      persistBusinessesToDb(data.businesses, submittedQuery).catch((err) => {
-        setApiError(err?.message || 'Failed to save fetched businesses.')
-      })
     }
-  }, [mode, data?.businesses, submittedQuery])
+  }, [mode, data?.businesses])
 
   useEffect(() => {
     if (mode !== 'new') {
@@ -300,9 +283,8 @@ const GBMPage = () => {
       setNewModeApiPage((p) => p + 1)
       setCurrentPage((p) => p + 1)
       setSelectedBusinessKey(null)
-      await persistBusinessesToDb(nextPageData.businesses || [], submittedQuery)
     } catch (err) {
-      setApiError(err?.apiErrorMessage || err?.apiStatus || err?.message || 'Failed to load next page.')
+      setApiErrorSafe(err?.apiErrorMessage || err?.apiStatus || err?.message || 'Failed to load next page.')
     } finally {
       setIsLoadingNextPage(false)
       nextPageRequestInFlightRef.current = false
@@ -406,7 +388,11 @@ const GBMPage = () => {
         </div>
       ) : isError ? (
         <div className="gbm-error">
-          <span>{error?.apiErrorMessage || error?.apiStatus || error?.message || 'Failed to fetch GBM businesses.'}</span>
+          <span>
+            {isRlsPolicyMessage(error?.apiErrorMessage || error?.apiStatus || error?.message)
+              ? 'Failed to fetch GBM businesses.'
+              : (error?.apiErrorMessage || error?.apiStatus || error?.message || 'Failed to fetch GBM businesses.')}
+          </span>
         </div>
       ) : (
         <div className="gbm-content-wrap">
