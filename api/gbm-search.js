@@ -42,6 +42,15 @@ function parseMaybeJson(input) {
   return input
 }
 
+function normalizeBusinessStatus(status) {
+  const raw = String(status || '').trim().toLowerCase()
+  if (!raw) return 'New'
+  if (raw === 'contacted') return 'Contacted'
+  if (raw === 'qualified' || raw === 'interested' || raw === 'proposal') return 'Qualified'
+  if (raw === 'closed') return 'Closed'
+  return 'New'
+}
+
 async function fetchTextSearchPage({ query, region, pageToken = null }) {
   const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json')
   if (query) searchUrl.searchParams.set('query', query)
@@ -133,7 +142,7 @@ export default async function handler(req, res) {
     }
 
     const body = parseMaybeJson(req.body)
-    const query = (body.query || 'plumber in Auckland New Zealand').trim()
+    const query = String(body.query || '').trim()
     const region = (body.region || 'nz').trim()
     const pageToken = (
       body.pagetoken ||
@@ -141,6 +150,12 @@ export default async function handler(req, res) {
       body.next_page_token ||
       ''
     ).trim() || null
+    if (!pageToken && !query) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query is required for the first page search.',
+      })
+    }
     const maxResultsRaw = Number(body.max_results || 20)
     const maxResults = Number.isFinite(maxResultsRaw)
       ? Math.max(1, Math.min(60, maxResultsRaw))
@@ -185,7 +200,7 @@ export default async function handler(req, res) {
     if (placeIds.length) {
       const { data: existingRows, error: existingErr } = await supabaseAdmin
         .from('gbm_businesses')
-        .select('place_id')
+        .select('place_id, business_status')
         .in('place_id', placeIds)
 
       if (existingErr) {
@@ -196,6 +211,7 @@ export default async function handler(req, res) {
       }
 
       const existingSet = new Set((existingRows || []).map((r) => r.place_id))
+      const existingStatusMap = new Map((existingRows || []).map((r) => [r.place_id, r.business_status]))
       inserted_count = placeIds.filter((id) => !existingSet.has(id)).length
       updated_count = placeIds.filter((id) => existingSet.has(id)).length
 
@@ -209,7 +225,9 @@ export default async function handler(req, res) {
         website: b.website || null,
         rating: b.rating,
         reviews: b.reviews,
-        business_status: b.business_status || null,
+        // Status is user/admin-controlled. New rows default to "New";
+        // existing rows keep their saved status.
+        business_status: normalizeBusinessStatus(existingStatusMap.get(b.place_id)),
         maps_url: b.maps_url || null,
         types: b.types || [],
         first_query: query,

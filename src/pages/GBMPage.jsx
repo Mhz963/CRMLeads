@@ -5,6 +5,18 @@ import { Loader2, MapPinned, RefreshCcw, Search, Star, ExternalLink, ArrowLeft, 
 import { supabase } from '../services/supabaseClient'
 import './GBMPage.css'
 
+const BUSINESS_STATUSES = ['New', 'Contacted', 'Qualified', 'Closed']
+
+function normalizeBusinessStatus(status) {
+  const raw = String(status || '').trim().toLowerCase()
+  if (!raw) return 'New'
+  if (raw === 'new' || raw === 'old') return 'New'
+  if (raw === 'contacted') return 'Contacted'
+  if (raw === 'qualified' || raw === 'interested' || raw === 'proposal') return 'Qualified'
+  if (raw === 'closed') return 'Closed'
+  return 'New'
+}
+
 function mapGooglePlace(place) {
   return {
     place_id: place.place_id || null,
@@ -116,8 +128,8 @@ async function fetchGBMResults({ query, region, maxResults, pageToken = null }) 
 const GBMPage = () => {
   const [searchParams] = useSearchParams()
   const mode = searchParams.get('view') === 'new' ? 'new' : 'list'
-  const [query, setQuery] = useState('plumber in Auckland New Zealand')
-  const [submittedQuery, setSubmittedQuery] = useState('plumber in Auckland New Zealand')
+  const [query, setQuery] = useState('')
+  const [submittedQuery, setSubmittedQuery] = useState('')
   const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
   const [newModeApiPage, setNewModeApiPage] = useState(1)
@@ -135,9 +147,10 @@ const GBMPage = () => {
     address: '',
     contact_no: '',
     website: '',
-    row_status: '',
+    status: 'New',
   })
   const nextPageRequestInFlightRef = useRef(false)
+  const resultsTopRef = useRef(null)
 
   function isRlsPolicyMessage(message) {
     return typeof message === 'string' && message.toLowerCase().includes('row-level security policy')
@@ -160,26 +173,24 @@ const GBMPage = () => {
     }
     const { data: existing, error: existingErr } = await supabase
       .from('gbm_businesses')
-      .select('place_id')
+      .select('place_id, business_status')
       .in('place_id', ids)
     if (existingErr) {
       console.error('[GBM status map]', existingErr.message || existingErr)
       return
     }
-    const existingSet = new Set((existing || []).map((row) => row.place_id))
+    const existingMap = new Map((existing || []).map((row) => [row.place_id, row.business_status]))
     const next = {}
     ids.forEach((id) => {
-      next[id] = existingSet.has(id) ? 'old' : 'new'
+      next[id] = normalizeBusinessStatus(existingMap.get(id))
     })
     setStatusByPlaceId(next)
   }
 
   const getBusinessStatusLabel = (biz) => {
-    const manual = (biz?.business_status || '').toLowerCase()
-    if (manual === 'old' || manual === 'new') return manual
-    if (mode === 'list') return 'old'
-    if (!biz.place_id) return 'new'
-    return statusByPlaceId[biz.place_id] || 'new'
+    if (biz?.place_id && statusByPlaceId[biz.place_id]) return normalizeBusinessStatus(statusByPlaceId[biz.place_id])
+    if (biz?.business_status) return normalizeBusinessStatus(biz.business_status)
+    return 'New'
   }
 
   const applyBusinessPatch = (targetBiz, patch) => {
@@ -196,29 +207,40 @@ const GBMPage = () => {
     }
   }
 
+  async function persistBusinessStatus(biz, nextStatus, overrides = {}) {
+    if (!biz?.place_id) return
+    const { error: upsertErr } = await supabase
+      .from('gbm_businesses')
+      .upsert({
+        place_id: biz.place_id,
+        name: overrides.name ?? biz.name ?? null,
+        formatted_address: overrides.address ?? biz.address ?? null,
+        contact_no: overrides.contact_no ?? biz.contact_no ?? null,
+        website: overrides.website ?? biz.website ?? null,
+        business_status: nextStatus,
+        maps_url: overrides.maps_url ?? biz.maps_url ?? null,
+        rating: overrides.rating ?? biz.rating,
+        reviews: overrides.reviews ?? biz.reviews ?? 0,
+        types: overrides.types ?? (Array.isArray(biz.types) ? biz.types : []),
+        last_query: submittedQuery || null,
+        last_seen_at: new Date().toISOString(),
+      }, { onConflict: 'place_id' })
+
+    if (upsertErr) throw upsertErr
+  }
+
   const handleManualStatusChange = async (biz, nextStatus) => {
-    if (!nextStatus || !['new', 'old'].includes(nextStatus)) return
+    if (!BUSINESS_STATUSES.includes(nextStatus)) return
+    const prevStatus = getBusinessStatusLabel(biz)
 
     applyBusinessPatch(biz, { business_status: nextStatus })
     if (biz.place_id) {
       setStatusByPlaceId((prev) => ({ ...prev, [biz.place_id]: nextStatus }))
-      const { error: upsertErr } = await supabase
-        .from('gbm_businesses')
-        .upsert({
-          place_id: biz.place_id,
-          name: biz.name || null,
-          formatted_address: biz.address || null,
-          contact_no: biz.contact_no || null,
-          website: biz.website || null,
-          business_status: nextStatus,
-          maps_url: biz.maps_url || null,
-          rating: biz.rating,
-          reviews: biz.reviews ?? 0,
-          types: Array.isArray(biz.types) ? biz.types : [],
-          last_query: submittedQuery || null,
-          last_seen_at: new Date().toISOString(),
-        }, { onConflict: 'place_id' })
-      if (upsertErr) {
+      try {
+        await persistBusinessStatus(biz, nextStatus)
+      } catch (upsertErr) {
+        applyBusinessPatch(biz, { business_status: prevStatus })
+        setStatusByPlaceId((prev) => ({ ...prev, [biz.place_id]: prevStatus }))
         console.error('[GBM status update]', upsertErr.message || upsertErr)
         setApiErrorSafe(upsertErr.message || 'Failed to save status update.')
       }
@@ -277,6 +299,7 @@ const GBMPage = () => {
         ? fetchGBMResults({ query: submittedQuery, region: 'nz', maxResults: 60 })
         : fetchGBMListFromDb()
     ),
+    enabled: mode === 'list' || Boolean(submittedQuery.trim()),
   })
 
   useEffect(() => {
@@ -328,7 +351,12 @@ const GBMPage = () => {
 
   const onSearch = (e) => {
     e.preventDefault()
-    setSubmittedQuery(query.trim() || 'plumber in Auckland New Zealand')
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery) {
+      setApiError('Please enter a search query. Example: "plumber in Auckland New Zealand".')
+      return
+    }
+    setSubmittedQuery(trimmedQuery)
     setCurrentPage(1)
     setNewModeApiPage(1)
     setNewModeBusinesses([])
@@ -361,6 +389,9 @@ const GBMPage = () => {
       setNewModeApiPage((p) => p + 1)
       setCurrentPage((p) => p + 1)
       refreshStatusMap(nextPageData.businesses || []).catch((err) => console.error('[GBM status map]', err))
+      requestAnimationFrame(() => {
+        resultsTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     } catch (err) {
       setApiErrorSafe(err?.apiErrorMessage || err?.apiStatus || err?.message || 'Failed to load next page.')
     } finally {
@@ -376,7 +407,7 @@ const GBMPage = () => {
       address: biz.address || '',
       contact_no: biz.contact_no || '',
       website: biz.website || '',
-      row_status: getBusinessStatusLabel(biz),
+      status: getBusinessStatusLabel(biz),
     })
   }
 
@@ -392,7 +423,7 @@ const GBMPage = () => {
         address: editForm.address.trim(),
         contact_no: editForm.contact_no.trim() || null,
         website: editForm.website.trim() || null,
-        business_status: editForm.row_status,
+        business_status: editForm.status,
       }
     })
 
@@ -406,7 +437,7 @@ const GBMPage = () => {
           address: editForm.address.trim(),
           contact_no: editForm.contact_no.trim() || null,
           website: editForm.website.trim() || null,
-          business_status: editForm.row_status,
+          business_status: editForm.status,
         } : prev)
       }
     }
@@ -414,28 +445,22 @@ const GBMPage = () => {
     if (editingBusiness.place_id) {
       setStatusByPlaceId((prev) => ({
         ...prev,
-        [editingBusiness.place_id]: editForm.row_status,
+        [editingBusiness.place_id]: editForm.status,
       }))
     }
 
     if (editingBusiness.place_id) {
-      const { error: upsertErr } = await supabase
-        .from('gbm_businesses')
-        .upsert({
-          place_id: editingBusiness.place_id,
+      try {
+        await persistBusinessStatus(editingBusiness, editForm.status || 'New', {
           name: editForm.name.trim() || editingBusiness.name,
-          formatted_address: editForm.address.trim() || null,
+          address: editForm.address.trim() || null,
           contact_no: editForm.contact_no.trim() || null,
           website: editForm.website.trim() || null,
-          business_status: editForm.row_status || null,
-          maps_url: editingBusiness.maps_url || null,
-          rating: editingBusiness.rating,
-          reviews: editingBusiness.reviews ?? 0,
-          types: Array.isArray(editingBusiness.types) ? editingBusiness.types : [],
-          last_query: submittedQuery,
-          last_seen_at: new Date().toISOString(),
-        }, { onConflict: 'place_id' })
-      if (upsertErr) console.error('[GBM edit save]', upsertErr.message || upsertErr)
+        })
+      } catch (upsertErr) {
+        console.error('[GBM edit save]', upsertErr.message || upsertErr)
+        setApiErrorSafe(upsertErr.message || 'Failed to save business update.')
+      }
     }
     setEditingBusiness(null)
   }
@@ -473,11 +498,17 @@ const GBMPage = () => {
           <div className="gbm-client-card">
             <div className="gbm-client-grid">
               <div className="gbm-client-row"><span>Name</span><strong>{viewBusiness.name || '—'}</strong></div>
-              <div className="gbm-client-row"><span>Status</span><strong>{viewBusiness.business_status || '—'}</strong></div>
+              <div className="gbm-client-row"><span>Status</span><strong>{getBusinessStatusLabel(viewBusiness)}</strong></div>
               <div className="gbm-client-row"><span>Address</span><strong>{viewBusiness.address || '—'}</strong></div>
               <div className="gbm-client-row"><span>Contact</span><strong>{viewBusiness.contact_no || '—'}</strong></div>
-              <div className="gbm-client-row"><span>Website</span><strong>{viewBusiness.website || '—'}</strong></div>
-              <div className="gbm-client-row"><span>Row Status</span><strong className={`gbm-mini-pill ${getBusinessStatusLabel(viewBusiness)}`}>{getBusinessStatusLabel(viewBusiness)}</strong></div>
+              <div className="gbm-client-row">
+                <span>Website</span>
+                <strong>
+                  {viewBusiness.website ? (
+                    <a href={viewBusiness.website} target="_blank" rel="noopener noreferrer">Website</a>
+                  ) : '—'}
+                </strong>
+              </div>
               <div className="gbm-client-row"><span>Rating</span><strong>{typeof viewBusiness.rating === 'number' ? viewBusiness.rating : '—'}</strong></div>
               <div className="gbm-client-row"><span>Reviews</span><strong>{viewBusiness.reviews ?? 0}</strong></div>
             </div>
@@ -540,7 +571,7 @@ const GBMPage = () => {
           <h2><MapPinned size={22} /> GBM Leads</h2>
           <p>
             {mode === 'new'
-              ? ''
+              ? 'Search Google Business listings by entering your own query.'
               : ''}
           </p>
         </div>
@@ -559,7 +590,7 @@ const GBMPage = () => {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="plumber in Auckland New Zealand"
+              placeholder='Use format: "<service> in <city> <country>" e.g. "plumber in Auckland New Zealand"'
             />
           </div>
           <div className="gbm-field small">
@@ -602,7 +633,7 @@ const GBMPage = () => {
 
       <div className="gbm-stats">
         <span><strong>{businesses.length}</strong> businesses</span>
-        <span><strong>{mode === 'new' ? submittedQuery : 'Database List'}</strong></span>
+        <span><strong>{mode === 'new' ? (submittedQuery || 'No query submitted yet') : 'Database List'}</strong></span>
         <span>
           Avg Rating:{' '}
           <strong>{avgRating ?? 'N/A'}</strong>
@@ -618,6 +649,7 @@ const GBMPage = () => {
           </span>
         )}
       </div>
+      <div ref={resultsTopRef} />
       {isLoading ? (
         <div className="gbm-loading">
           <Loader2 size={26} className="spinning" />
@@ -663,7 +695,7 @@ const GBMPage = () => {
                         <td className="biz-website">
                           {biz.website ? (
                             <a href={biz.website} target="_blank" rel="noopener noreferrer">
-                              {biz.website}
+                              Website
                             </a>
                           ) : '—'}
                         </td>
@@ -682,8 +714,9 @@ const GBMPage = () => {
                             value={getBusinessStatusLabel(biz)}
                             onChange={(e) => handleManualStatusChange(biz, e.target.value)}
                           >
-                            <option value="new">new</option>
-                            <option value="old">old</option>
+                            {BUSINESS_STATUSES.map((status) => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
                           </select>
                         </td>
                         <td>
@@ -781,9 +814,10 @@ const GBMPage = () => {
               </div>
               <div className="form-field">
                 <label>Status</label>
-                <select value={editForm.row_status} onChange={(e) => setEditForm((prev) => ({ ...prev, row_status: e.target.value }))}>
-                  <option value="new">new</option>
-                  <option value="old">old</option>
+                <select value={editForm.status} onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}>
+                  {BUSINESS_STATUSES.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
                 </select>
               </div>
               <div className="modal-actions">
