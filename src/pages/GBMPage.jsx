@@ -137,6 +137,9 @@ const GBMPage = () => {
   const [nextPageToken, setNextPageToken] = useState(null)
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [cityFilter, setCityFilter] = useState('')
+  const [countryFilter, setCountryFilter] = useState('')
+  const [reviewsSort, setReviewsSort] = useState('reviews_desc')
   const [statusByPlaceId, setStatusByPlaceId] = useState({})
   const [viewBusiness, setViewBusiness] = useState(null)
   const [feedbackInput, setFeedbackInput] = useState('')
@@ -327,13 +330,36 @@ const GBMPage = () => {
   }, [mode])
 
   const businesses = mode === 'new' ? newModeBusinesses : (data?.businesses || [])
+  const listModeProcessedBusinesses = useMemo(() => {
+    if (mode === 'new') return businesses
+
+    const cityNeedle = cityFilter.trim().toLowerCase()
+    const countryNeedle = countryFilter.trim().toLowerCase()
+
+    const filtered = businesses.filter((biz) => {
+      const address = String(biz.address || '').toLowerCase()
+      if (cityNeedle && !address.includes(cityNeedle)) return false
+      if (countryNeedle && !address.includes(countryNeedle)) return false
+      return true
+    })
+
+    const sorted = [...filtered]
+    if (reviewsSort === 'reviews_desc') {
+      sorted.sort((a, b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0))
+    } else if (reviewsSort === 'reviews_asc') {
+      sorted.sort((a, b) => (Number(a.reviews) || 0) - (Number(b.reviews) || 0))
+    }
+    return sorted
+  }, [mode, businesses, cityFilter, countryFilter, reviewsSort])
+
+  const visibleBusinesses = mode === 'new' ? businesses : listModeProcessedBusinesses
   const totalPages = mode === 'new'
     ? Math.max(1, newModeApiPage)
-    : Math.max(1, Math.ceil(businesses.length / entriesPerPage))
+    : Math.max(1, Math.ceil(visibleBusinesses.length / entriesPerPage))
   const pageStart = (currentPage - 1) * entriesPerPage
   const paginatedBusinesses = mode === 'new'
     ? businesses
-    : businesses.slice(pageStart, pageStart + entriesPerPage)
+    : visibleBusinesses.slice(pageStart, pageStart + entriesPerPage)
 
   useEffect(() => {
     // Prevent impossible state like "Page 2 of 1", which hides all rows.
@@ -614,6 +640,41 @@ const GBMPage = () => {
         </form>
       ) : (
         <div className="gbm-search-bar">
+          <div className="gbm-field grow">
+            <label>City</label>
+            <input
+              value={cityFilter}
+              onChange={(e) => {
+                setCityFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Filter by city (e.g. Auckland)"
+            />
+          </div>
+          <div className="gbm-field grow">
+            <label>Country</label>
+            <input
+              value={countryFilter}
+              onChange={(e) => {
+                setCountryFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Filter by country (e.g. New Zealand)"
+            />
+          </div>
+          <div className="gbm-field small">
+            <label>Sort by reviews</label>
+            <select
+              value={reviewsSort}
+              onChange={(e) => {
+                setReviewsSort(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="reviews_desc">Highest first</option>
+              <option value="reviews_asc">Lowest first</option>
+            </select>
+          </div>
           <div className="gbm-field small">
             <label>Entries per page</label>
             <select
@@ -632,7 +693,7 @@ const GBMPage = () => {
       )}
 
       <div className="gbm-stats">
-        <span><strong>{businesses.length}</strong> businesses</span>
+        <span><strong>{visibleBusinesses.length}</strong> businesses</span>
         <span><strong>{mode === 'new' ? (submittedQuery || 'No query submitted yet') : 'Database List'}</strong></span>
         <span>
           Avg Rating:{' '}
@@ -681,7 +742,7 @@ const GBMPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {businesses.length === 0 ? (
+                {visibleBusinesses.length === 0 ? (
                   <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
                 ) : (
                   paginatedBusinesses.map((biz) => {
@@ -762,7 +823,7 @@ const GBMPage = () => {
         </div>
       )}
 
-      {businesses.length > 0 && (
+      {visibleBusinesses.length > 0 && (
         <div className="gbm-pagination">
           <button
             className="btn-outline"
