@@ -17,6 +17,15 @@ function normalizeBusinessStatus(status) {
   return 'New'
 }
 
+function formatBusinessTypes(types) {
+  if (!Array.isArray(types) || types.length === 0) return '—'
+  return types
+    .slice(0, 3)
+    .map((t) => String(t || '').replace(/_/g, ' ').trim())
+    .filter(Boolean)
+    .join(', ')
+}
+
 function mapGooglePlace(place) {
   return {
     place_id: place.place_id || null,
@@ -731,6 +740,7 @@ const GBMPage = () => {
               <thead>
                 <tr>
                   <th>Business Name</th>
+                  <th>Business Type</th>
                   <th>Address</th>
                   <th>Contact No.</th>
                   <th>Email</th>
@@ -743,13 +753,14 @@ const GBMPage = () => {
               </thead>
               <tbody>
                 {visibleBusinesses.length === 0 ? (
-                  <tr><td colSpan="9" className="gbm-empty">No results found.</td></tr>
+                  <tr><td colSpan="10" className="gbm-empty">No results found.</td></tr>
                 ) : (
                   paginatedBusinesses.map((biz) => {
                     const rowKey = biz.place_id || `${biz.name}-${biz.address}`
                     return (
                       <tr key={rowKey}>
                         <td className="biz-name">{biz.name}</td>
+                        <td className="biz-type">{formatBusinessTypes(biz.types)}</td>
                         <td className="biz-address">{biz.address || '—'}</td>
                         <td>{biz.contact_no || '—'}</td>
                         <td>{biz.email || '—'}</td>
