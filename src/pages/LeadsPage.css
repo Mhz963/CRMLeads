@@ -583,6 +583,12 @@
   gap: 0.85rem;
 }
 
+.webform-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
 .webform-header {
   text-align: center;
   margin-bottom: 0.5rem;
@@ -669,5 +675,9 @@
 
   .leads-table {
     min-width: 700px;
+  }
+
+  .webform-grid {
+    grid-template-columns: 1fr;
   }
 }

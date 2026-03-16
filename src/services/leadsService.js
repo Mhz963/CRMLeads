@@ -132,6 +132,12 @@ export async function createLead(payload) {
       services: payload.services || null,
       user_ip: payload.user_ip || null,
       notes: payload.notes || null,
+      custom_fields:
+        payload.custom_fields &&
+        typeof payload.custom_fields === 'object' &&
+        !Array.isArray(payload.custom_fields)
+          ? payload.custom_fields
+          : null,
       tag: payload.tag || null,
       score: payload.score ?? null,
       assigned_to: payload.assigned_to ?? null,

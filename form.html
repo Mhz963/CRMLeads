@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM Custom Form Demo</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --border: #dfe4ea;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+    }
+    .wrap {
+      max-width: 820px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { margin: 0 0 14px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    label { font-size: 13px; color: var(--muted); }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 11px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    .actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      border: 0;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 11px 14px;
+      cursor: pointer;
+    }
+    .status {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    code { background: #eef2ff; padding: 1px 6px; border-radius: 6px; }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Custom Fields Form Demo</h1>
+    <p>
+      Demo form for posting to your CRM <code>/api/leads</code>. It sends core lead fields plus
+      extra fields in <code>custom_fields</code> JSON.
+    </p>
+    <form id="leadForm">
+      <div class="grid">
+        <div class="field">
+          <label for="fullName">Full Name *</label>
+          <input id="fullName" type="text" required />
+        </div>
+        <div class="field">
+          <label for="phone">Phone Number *</label>
+          <input id="phone" type="text" required />
+        </div>
+        <div class="field full">
+          <label for="email">Email Address</label>
+          <input id="email" type="email" />
+        </div>
+        <div class="field full">
+          <label for="service">Select a Service</label>
+          <select id="service">
+            <option value="">Select a Service</option>
+            <option>Carpet Cleaning</option>
+            <option>Deep Cleaning</option>
+            <option>Stain Removal</option>
+            <option>Upholstery Cleaning</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rooms">Number of Rooms</label>
+          <input id="rooms" type="number" min="0" />
+        </div>
+        <div class="field">
+          <label for="propertyType">Property Type</label>
+          <select id="propertyType">
+            <option value="">Property Type</option>
+            <option>Apartment</option>
+            <option>House</option>
+            <option>Office</option>
+            <option>Commercial</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="postcode">Postcode *</label>
+          <input id="postcode" type="text" required />
+        </div>
+        <div class="field">
+          <label for="preferredDate">Preferred Date</label>
+          <input id="preferredDate" type="date" />
+        </div>
+        <div class="field">
+          <label for="preferredTime">Preferred Time</label>
+          <select id="preferredTime">
+            <option value="">Preferred Time</option>
+            <option>Morning</option>
+            <option>Afternoon</option>
+            <option>Evening</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="message">Additional Message</label>
+          <textarea id="message"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">Submit to CRM</button>
+      </div>
+      <div id="statusBox" class="status">Ready.</div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('leadForm')
+    const statusBox = document.getElementById('statusBox')
+    const FIXED_API_ENDPOINT = 'https://crm-leads-beige.vercel.app/api/leads'
+    const FIXED_API_KEY = 'sk_test_1234567890abcdef'
+
+    function val(id) {
+      return document.getElementById(id).value.trim()
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      statusBox.textContent = 'Submitting...'
+      const endpoint = FIXED_API_ENDPOINT
+      const apiKey = FIXED_API_KEY
+
+      const payload = {
+        full_name: val('fullName'),
+        email: val('email') || null,
+        phone: val('phone') || null,
+        services: val('service') || null,
+        notes: val('message') || null,
+        source_detail: 'form.html demo submission',
+        custom_fields: {
+          service: val('service') || null,
+          number_of_rooms: val('rooms') ? Number(val('rooms')) : null,
+          property_type: val('propertyType') || null,
+          postcode: val('postcode') || null,
+          preferred_date: val('preferredDate') || null,
+          preferred_time: val('preferredTime') || null,
+          additional_message: val('message') || null,
+          source_page: window.location.href,
+        },
+      }
+
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+          },
+          body: JSON.stringify(payload),
+        })
+        const text = await resp.text()
+        let json = {}
+        try {
+          json = text ? JSON.parse(text) : {}
+        } catch {
+          json = { raw: text }
+        }
+
+        if (!resp.ok || !json.success) {
+          statusBox.textContent = `Failed (${resp.status}): ${json.error || 'Unknown error'}`
+          return
+        }
+
+        statusBox.textContent = `Success! Lead ID: ${json?.lead?.id || 'N/A'}\n${JSON.stringify(json, null, 2)}`
+      } catch (err) {
+        statusBox.textContent = `Request failed: ${err?.message || err}`
+      }
+    })
+  </script>
+</body>
+</html>

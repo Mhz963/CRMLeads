@@ -81,6 +81,70 @@ function extractBusinessFieldsFromNotes(rawNotes) {
   }
 }
 
+function toSnakeCase(input) {
+  return String(input || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function cleanCustomObject(obj) {
+  const out = {}
+  for (const [key, value] of Object.entries(obj || {})) {
+    const safeKey = toSnakeCase(key)
+    if (!safeKey) continue
+    if (value === undefined || value === null) continue
+    if (typeof value === 'string' && value.trim() === '') continue
+    out[safeKey] = typeof value === 'string' ? value.trim() : value
+  }
+  return out
+}
+
+function buildCustomFields(body, req) {
+  const reservedKeys = new Set([
+    'name', 'full_name', 'email', 'phone', 'business_address', 'address', 'business_addr',
+    'website', 'web', 'site', 'map_url', 'google_maps_url', 'maps_url',
+    'google_rating', 'rating', 'stars', 'google_reviews', 'reviews', 'review_count',
+    'services', 'notes', 'source_detail', 'custom_fields',
+  ])
+
+  const explicitCustom = cleanCustomObject(
+    body?.custom_fields && typeof body.custom_fields === 'object' && !Array.isArray(body.custom_fields)
+      ? body.custom_fields
+      : {}
+  )
+
+  // Demo mapping for the sample contact form fields.
+  const mappedCustom = cleanCustomObject({
+    service: valueFromAliases(body, ['service', 'service_type', 'service_requested']) || (body?.services || ''),
+    number_of_rooms: parseNumberMaybe(body?.number_of_rooms ?? body?.rooms ?? body?.room_count),
+    property_type: valueFromAliases(body, ['property_type', 'propertyType']),
+    postcode: valueFromAliases(body, ['postcode', 'zip', 'zip_code', 'postal_code']),
+    preferred_date: valueFromAliases(body, ['preferred_date', 'date', 'service_date']),
+    preferred_time: valueFromAliases(body, ['preferred_time', 'time', 'time_slot']),
+    additional_message: valueFromAliases(body, ['additional_message', 'message', 'additionalMessage']),
+    source_page: valueFromAliases(body, ['source_page', 'page_url']) || req.headers.referer || null,
+  })
+
+  const dynamicCustom = {}
+  for (const [rawKey, rawValue] of Object.entries(body || {})) {
+    const safeKey = toSnakeCase(rawKey)
+    if (!safeKey || reservedKeys.has(safeKey)) continue
+    if (rawValue === undefined || rawValue === null) continue
+    if (typeof rawValue === 'string' && rawValue.trim() === '') continue
+    dynamicCustom[safeKey] = typeof rawValue === 'string' ? rawValue.trim() : rawValue
+  }
+
+  return {
+    ...mappedCustom,
+    ...dynamicCustom,
+    ...explicitCustom,
+  }
+}
+
 export default async function handler(req, res) {
   // Set CORS headers on EVERY response (including OPTIONS)
   Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -158,6 +222,7 @@ export default async function handler(req, res) {
       body.review_count ??
       notesExtracted.reviews
     )
+  const customFields = buildCustomFields(body, req)
 
   if (!leadName) {
     return res.status(400).json({
@@ -232,12 +297,20 @@ export default async function handler(req, res) {
         score: null,
         assigned_to: null,
         created_by: null,        // No authenticated user — came from external API
+        custom_fields: Object.keys(customFields).length ? customFields : null,
       })
       .select('id, full_name, email, status, source, created_at')
       .single()
 
     if (error) {
       console.error('Supabase insert error:', error)
+      const errMsg = String(error?.message || '')
+      if (errMsg.toLowerCase().includes('custom_fields')) {
+        return res.status(500).json({
+          success: false,
+          error: 'Missing `custom_fields` column in `leads` table. Add JSONB column first.',
+        })
+      }
       return res.status(500).json({
         success: false,
         error: 'Failed to create lead. Please try again.',
@@ -266,6 +339,7 @@ export default async function handler(req, res) {
         website: leadWebsite || null,
         google_rating: leadRating,
         google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
+        custom_fields: Object.keys(customFields).length ? customFields : null,
         created_at: data.created_at,
       },
     })

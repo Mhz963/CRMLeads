@@ -16,6 +16,29 @@ const TAG_STYLES = {
   'High Value': { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: 'rgba(16, 185, 129, 0.3)' },
 }
 
+function toPrettyLabel(key) {
+  return String(key || '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase())
+}
+
+function toDisplayValue(value) {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'string') return value.trim() || '—'
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    const clean = value.filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
+    return clean.length ? clean.join(', ') : '—'
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '—'
+  }
+}
+
 const LeadProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -200,6 +223,16 @@ const LeadProfilePage = () => {
   }
 
   const tagStyle = TAG_STYLES[lead.tag] || null
+  const customFields =
+    lead.custom_fields && typeof lead.custom_fields === 'object' && !Array.isArray(lead.custom_fields)
+      ? lead.custom_fields
+      : {}
+  const customFieldEntries = Object.entries(customFields).filter(([, value]) => {
+    if (value === null || value === undefined) return false
+    if (typeof value === 'string' && !value.trim()) return false
+    if (Array.isArray(value) && value.length === 0) return false
+    return true
+  })
 
   return (
     <div className="lead-profile animate-fade-in">
@@ -380,6 +413,19 @@ const LeadProfilePage = () => {
               <div className="lead-notes-box">
                 <strong>Notes:</strong>
                 <p>{lead.notes}</p>
+              </div>
+            )}
+            {customFieldEntries.length > 0 && (
+              <div className="custom-fields-box">
+                <strong>Custom Fields:</strong>
+                <div className="custom-fields-grid">
+                  {customFieldEntries.map(([key, value]) => (
+                    <div key={key} className="custom-field-item">
+                      <span className="custom-field-key">{toPrettyLabel(key)}</span>
+                      <span className="custom-field-value">{toDisplayValue(value)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

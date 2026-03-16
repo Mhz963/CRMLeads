@@ -29,6 +29,19 @@ const EMPTY_FORM = {
   tag: '',
 }
 
+const EMPTY_WEB_FORM = {
+  full_name: '',
+  email: '',
+  phone: '',
+  service: '',
+  number_of_rooms: '',
+  property_type: '',
+  postcode: '',
+  preferred_date: '',
+  preferred_time: '',
+  additional_message: '',
+}
+
 const LeadsPage = () => {
   const queryClient = useQueryClient()
   const fileInputRef = useRef(null)
@@ -45,7 +58,7 @@ const LeadsPage = () => {
   const [form, setForm] = useState(EMPTY_FORM)
   const [csvText, setCsvText] = useState('')
   const [csvResult, setCsvResult] = useState(null)
-  const [webForm, setWebForm] = useState({ full_name: '', email: '', phone: '', services: '' })
+  const [webForm, setWebForm] = useState(EMPTY_WEB_FORM)
 
   // Data
   const { data: leads = [], isLoading, isError, refetch } = useQuery({
@@ -144,10 +157,27 @@ const LeadsPage = () => {
   const handleWebFormSubmit = (e) => {
     e.preventDefault()
     if (!webForm.full_name.trim() || !webForm.email.trim()) return
-    createMutation.mutate({ ...webForm, source: 'Web Form', status: 'New Lead' }, {
+    createMutation.mutate({
+      full_name: webForm.full_name.trim(),
+      email: webForm.email.trim(),
+      phone: webForm.phone.trim() || null,
+      services: webForm.service.trim() || null,
+      notes: webForm.additional_message.trim() || null,
+      source: 'Web Form',
+      status: 'New Lead',
+      custom_fields: {
+        service: webForm.service.trim() || null,
+        number_of_rooms: webForm.number_of_rooms === '' ? null : Number(webForm.number_of_rooms),
+        property_type: webForm.property_type.trim() || null,
+        postcode: webForm.postcode.trim() || null,
+        preferred_date: webForm.preferred_date || null,
+        preferred_time: webForm.preferred_time.trim() || null,
+        additional_message: webForm.additional_message.trim() || null,
+      },
+    }, {
       onSuccess: () => {
         setShowWebForm(false)
-        setWebForm({ full_name: '', email: '', phone: '', services: '' })
+        setWebForm(EMPTY_WEB_FORM)
       },
     })
   }
@@ -586,7 +616,7 @@ const LeadsPage = () => {
               </button>
             </div>
             <p className="webform-desc">
-              This simulates a lead capture form that could be embedded on your website. When submitted, a new lead is created automatically with source <strong>"Web Form"</strong>.
+              This simulates an embeddable website contact form with custom fields. On submit, lead data is saved with source <strong>"Web Form"</strong> and extra fields go into <strong>custom_fields (JSON)</strong>.
             </p>
             <form onSubmit={handleWebFormSubmit} className="modal-form">
               <div className="webform-preview">
@@ -594,14 +624,24 @@ const LeadsPage = () => {
                   <h4>Get a Free Quote</h4>
                   <p>Fill out the form below and we'll get back to you within 24 hours.</p>
                 </div>
-                <div className="form-field">
-                  <label>Your Name <span className="req">*</span></label>
-                  <input
-                    value={webForm.full_name}
-                    onChange={(e) => setWebForm({ ...webForm, full_name: e.target.value })}
-                    placeholder="John Doe"
-                    required
-                  />
+                <div className="webform-grid">
+                  <div className="form-field">
+                    <label>Full Name <span className="req">*</span></label>
+                    <input
+                      value={webForm.full_name}
+                      onChange={(e) => setWebForm({ ...webForm, full_name: e.target.value })}
+                      placeholder="John Doe"
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Phone Number</label>
+                    <input
+                      value={webForm.phone}
+                      onChange={(e) => setWebForm({ ...webForm, phone: e.target.value })}
+                      placeholder="+64 21 123 4567"
+                    />
+                  </div>
                 </div>
                 <div className="form-field">
                   <label>Email Address <span className="req">*</span></label>
@@ -614,19 +654,80 @@ const LeadsPage = () => {
                   />
                 </div>
                 <div className="form-field">
-                  <label>Phone Number</label>
-                  <input
-                    value={webForm.phone}
-                    onChange={(e) => setWebForm({ ...webForm, phone: e.target.value })}
-                    placeholder="+64 21 123 4567"
-                  />
+                  <label>Select a Service</label>
+                  <select
+                    value={webForm.service}
+                    onChange={(e) => setWebForm({ ...webForm, service: e.target.value })}
+                  >
+                    <option value="">Select a Service</option>
+                    <option value="Carpet Cleaning">Carpet Cleaning</option>
+                    <option value="Deep Cleaning">Deep Cleaning</option>
+                    <option value="Stain Removal">Stain Removal</option>
+                    <option value="Upholstery Cleaning">Upholstery Cleaning</option>
+                  </select>
+                </div>
+                <div className="webform-grid">
+                  <div className="form-field">
+                    <label>Number of Rooms</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={webForm.number_of_rooms}
+                      onChange={(e) => setWebForm({ ...webForm, number_of_rooms: e.target.value })}
+                      placeholder="3"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Property Type</label>
+                    <select
+                      value={webForm.property_type}
+                      onChange={(e) => setWebForm({ ...webForm, property_type: e.target.value })}
+                    >
+                      <option value="">Select property type</option>
+                      <option value="Apartment">Apartment</option>
+                      <option value="House">House</option>
+                      <option value="Office">Office</option>
+                      <option value="Commercial">Commercial</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="form-field">
-                  <label>Services Interested In</label>
+                  <label>Postcode</label>
                   <input
-                    value={webForm.services}
-                    onChange={(e) => setWebForm({ ...webForm, services: e.target.value })}
-                    placeholder="e.g. Website, SEO, Branding"
+                    value={webForm.postcode}
+                    onChange={(e) => setWebForm({ ...webForm, postcode: e.target.value })}
+                    placeholder="1010"
+                  />
+                </div>
+                <div className="webform-grid">
+                  <div className="form-field">
+                    <label>Preferred Date</label>
+                    <input
+                      type="date"
+                      value={webForm.preferred_date}
+                      onChange={(e) => setWebForm({ ...webForm, preferred_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Preferred Time</label>
+                    <select
+                      value={webForm.preferred_time}
+                      onChange={(e) => setWebForm({ ...webForm, preferred_time: e.target.value })}
+                    >
+                      <option value="">Select time</option>
+                      <option value="Morning">Morning</option>
+                      <option value="Afternoon">Afternoon</option>
+                      <option value="Evening">Evening</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label>Additional Message</label>
+                  <textarea
+                    value={webForm.additional_message}
+                    onChange={(e) => setWebForm({ ...webForm, additional_message: e.target.value })}
+                    rows={3}
+                    placeholder="Tell us anything important..."
                   />
                 </div>
                 <button type="submit" className="webform-submit" disabled={createMutation.isPending}>
