@@ -151,6 +151,7 @@ const AdminPage = ({ currentUser, userProfile }) => {
               onChange={(e) => setNewUser((prev) => ({ ...prev, role: e.target.value }))}
             >
               <option value="team_member">Team Member</option>
+              <option value="business_member">Business Member</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -197,6 +198,13 @@ const AdminPage = ({ currentUser, userProfile }) => {
                 <span className="admin-stat-label">Team Members</span>
               </div>
             </div>
+            <div className="admin-stat-card">
+              <Users size={20} />
+              <div>
+                <span className="admin-stat-value">{members.filter((m) => m.role === 'business_member').length}</span>
+                <span className="admin-stat-label">Business Members</span>
+              </div>
+            </div>
           </div>
 
           <div className="admin-table-wrap">
@@ -233,6 +241,7 @@ const AdminPage = ({ currentUser, userProfile }) => {
                           >
                             <option value="admin">Admin</option>
                             <option value="team_member">Team Member</option>
+                            <option value="business_member">Business Member</option>
                           </select>
                           <ChevronDown size={14} className="role-chevron" />
                         </div>

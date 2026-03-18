@@ -30,6 +30,7 @@ const Header = ({ user, userProfile }) => {
   const role = userProfile?.role
   const displayName = userProfile?.full_name || user?.email || ''
   const initial = displayName.charAt(0).toUpperCase()
+  const isBusinessMember = role === 'business_member'
   const isGbmRoute = location.pathname === '/gbm'
   const gbmViewParam = new URLSearchParams(location.search).get('view')
   const gbmView = gbmViewParam === 'new' ? 'new' : 'list'
@@ -64,37 +65,41 @@ const Header = ({ user, userProfile }) => {
             <KanbanSquare className="nav-icon" />
             Pipeline
           </NavLink>
-          <div className={`nav-dropdown ${isGbmRoute ? 'active' : ''}`}>
-            <NavLink
-              to={`/gbm?view=${gbmView}`}
-              className={`nav-tab dropdown-trigger ${isGbmRoute ? 'active' : ''}`}
-            >
-              <MapPinned className="nav-icon" />
-              GBM
-              <ChevronDown className="dropdown-icon" />
-            </NavLink>
-            <div className="dropdown-menu">
-              <Link
-                to="/gbm?view=new"
-                className={`dropdown-item ${isGbmRoute && gbmView === 'new' ? 'active' : ''}`}
+          {!isBusinessMember && (
+            <div className={`nav-dropdown ${isGbmRoute ? 'active' : ''}`}>
+              <NavLink
+                to={`/gbm?view=${gbmView}`}
+                className={`nav-tab dropdown-trigger ${isGbmRoute ? 'active' : ''}`}
               >
-                New
-              </Link>
-              <Link
-                to="/gbm?view=list"
-                className={`dropdown-item ${isGbmRoute && gbmView === 'list' ? 'active' : ''}`}
-              >
-                List
-              </Link>
+                <MapPinned className="nav-icon" />
+                GBM
+                <ChevronDown className="dropdown-icon" />
+              </NavLink>
+              <div className="dropdown-menu">
+                <Link
+                  to="/gbm?view=new"
+                  className={`dropdown-item ${isGbmRoute && gbmView === 'new' ? 'active' : ''}`}
+                >
+                  New
+                </Link>
+                <Link
+                  to="/gbm?view=list"
+                  className={`dropdown-item ${isGbmRoute && gbmView === 'list' ? 'active' : ''}`}
+                >
+                  List
+                </Link>
+              </div>
             </div>
-          </div>
-          <NavLink
-            to="/tasks"
-            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-          >
-            <ClipboardList className="nav-icon" />
-            Tasks
-          </NavLink>
+          )}
+          {!isBusinessMember && (
+            <NavLink
+              to="/tasks"
+              className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+            >
+              <ClipboardList className="nav-icon" />
+              Tasks
+            </NavLink>
+          )}
           {role === 'admin' && (
             <NavLink
               to="/admin"
@@ -113,7 +118,11 @@ const Header = ({ user, userProfile }) => {
             <div className="user-meta">
               <span className="user-name">{displayName}</span>
               <span className={`role-badge role-badge-${role}`}>
-                {role === 'admin' ? 'Admin' : 'Team Member'}
+                {role === 'admin'
+                  ? 'Admin'
+                  : role === 'business_member'
+                    ? 'Business Member'
+                    : 'Team Member'}
               </span>
             </div>
           </div>

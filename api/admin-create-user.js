@@ -77,7 +77,8 @@ export default async function handler(req, res) {
     const email = String(body.email || '').trim().toLowerCase()
     const password = String(body.password || '')
     const fullName = String(body.full_name || '').trim()
-    const role = body.role === 'admin' ? 'admin' : 'team_member'
+    const allowedRoles = new Set(['admin', 'team_member', 'business_member'])
+    const role = allowedRoles.has(body.role) ? body.role : 'team_member'
 
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required.' })

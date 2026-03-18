@@ -94,6 +94,8 @@ function App() {
   }, [user, startListening, stopListening, requestPermission])
 
   const isLoggedIn = !!user
+  const role = userProfile?.role || null
+  const isBusinessMember = role === 'business_member'
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
   const showParticles = isPublicRoute && !isLoggedIn
 
@@ -152,17 +154,31 @@ function App() {
             />
             <Route
               path="/gbm"
-              element={isLoggedIn ? <GBMPage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn ? (
+                  isBusinessMember ? <Navigate to="/dashboard" replace /> : <GBMPage />
+                ) : (
+                  <Navigate to="/signin" replace />
+                )
+              }
             />
             <Route
               path="/tasks"
-              element={isLoggedIn ? <TasksPage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn ? (
+                  isBusinessMember ? <Navigate to="/dashboard" replace /> : <TasksPage />
+                ) : (
+                  <Navigate to="/signin" replace />
+                )
+              }
             />
             <Route
               path="/admin"
               element={
                 isLoggedIn ? (
-                  <AdminPage currentUser={user} userProfile={userProfile} />
+                  role === 'admin'
+                    ? <AdminPage currentUser={user} userProfile={userProfile} />
+                    : <Navigate to="/dashboard" replace />
                 ) : (
                   <Navigate to="/signin" replace />
                 )

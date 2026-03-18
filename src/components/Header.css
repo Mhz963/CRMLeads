@@ -193,6 +193,9 @@
 .role-badge-team_member {
   color: var(--text-muted);
 }
+.role-badge-business_member {
+  color: #0ea5e9;
+}
 
 .signout-btn {
   display: flex;
