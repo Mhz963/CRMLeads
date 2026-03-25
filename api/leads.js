@@ -9,6 +9,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY  // ⚠️ Server-only, bypasses RLS
 const apiKey = process.env.CRM_API_KEY                        // Shared secret for API callers
+const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
+const telegramChatId = process.env.TELEGRAM_CHAT_ID
 
 // Create a Supabase admin client (bypasses RLS)
 function getSupabaseAdmin() {
@@ -142,6 +144,63 @@ function buildCustomFields(body, req) {
     ...mappedCustom,
     ...dynamicCustom,
     ...explicitCustom,
+  }
+}
+
+function formatTelegramLeadMessage({
+  leadName,
+  leadPhone,
+  leadEmail,
+  service,
+  notes,
+  customFields,
+}) {
+  const lines = [
+    'New Lead Received',
+    `Name: ${leadName || '—'}`,
+    `Phone: ${leadPhone || '—'}`,
+    `Email: ${leadEmail || '—'}`,
+    `Service: ${service || '—'}`,
+  ]
+
+  const rooms = customFields?.number_of_rooms
+  const propertyType = customFields?.property_type
+  const postcode = customFields?.postcode
+  const preferredDate = customFields?.preferred_date
+  const preferredTime = customFields?.preferred_time
+  const additionalMessage = customFields?.additional_message
+
+  if (rooms !== null && rooms !== undefined && String(rooms).trim() !== '') lines.push(`Rooms: ${rooms}`)
+  if (propertyType) lines.push(`Property: ${propertyType}`)
+  if (postcode) lines.push(`Postcode: ${postcode}`)
+  if (preferredDate) lines.push(`Preferred Date: ${preferredDate}`)
+  if (preferredTime) lines.push(`Preferred Time: ${preferredTime}`)
+  if (additionalMessage) lines.push(`Message: ${additionalMessage}`)
+  else if (notes) lines.push(`Message: ${notes}`)
+
+  return lines.join('\n')
+}
+
+async function sendTelegramLeadNotification(payload) {
+  if (!telegramBotToken || !telegramChatId) return
+  const text = formatTelegramLeadMessage(payload)
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: telegramChatId,
+        text,
+        disable_web_page_preview: true,
+      }),
+    })
+    if (!response.ok) {
+      const raw = await response.text()
+      console.error('Telegram sendMessage failed:', raw)
+    }
+  } catch (err) {
+    console.error('Telegram notification error:', err)
   }
 }
 
@@ -325,6 +384,16 @@ export default async function handler(req, res) {
         ? `Lead submitted via Website API (${source_detail})`
         : 'Lead submitted via Website API',
       created_by: null,
+    })
+
+    // Non-blocking notification: lead creation should succeed even if Telegram fails.
+    sendTelegramLeadNotification({
+      leadName,
+      leadPhone,
+      leadEmail,
+      service: (services || '').trim() || customFields?.service || null,
+      notes: (notes || '').trim() || null,
+      customFields,
     })
 
     return res.status(201).json({
