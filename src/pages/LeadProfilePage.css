@@ -114,6 +114,31 @@
   margin-bottom: 0.5rem;
 }
 
+.profile-quick-contact {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  max-width: 52%;
+  justify-content: flex-end;
+}
+
+.quick-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.22rem 0.58rem;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-badges {
   display: flex;
   gap: 0.5rem;
@@ -209,15 +234,15 @@
 /* ─── Profile Grid ─── */
 .profile-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1rem;
 }
 
 .profile-left,
 .profile-right {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 /* ─── Profile Card ─── */
@@ -225,7 +250,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  padding: 1.5rem;
+  padding: 1.1rem;
 }
 
 .profile-card h3 {
@@ -526,6 +551,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .timeline-entry {
@@ -599,6 +626,12 @@
   }
 
   .profile-badges {
+    justify-content: center;
+  }
+
+  .profile-quick-contact {
+    margin-left: 0;
+    max-width: 100%;
     justify-content: center;
   }
 

@@ -286,6 +286,12 @@ const LeadProfilePage = () => {
             </select>
           </div>
         </div>
+        <div className="profile-quick-contact">
+          {lead.email && <span className="quick-chip">{lead.email}</span>}
+          {lead.phone && <span className="quick-chip">{lead.phone}</span>}
+          {lead.services && <span className="quick-chip">{lead.services}</span>}
+          {lead.business_address && <span className="quick-chip">{lead.business_address}</span>}
+        </div>
       </div>
 
       {/* Edit Inline */}
@@ -433,6 +439,34 @@ const LeadProfilePage = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Right Column - Activity Timeline */}
+        <div className="profile-right">
+          <div className="profile-card">
+            <h3>Activity Timeline</h3>
+            {activities.length === 0 ? (
+              <p className="empty-msg">No activity recorded yet.</p>
+            ) : (
+              <div className="timeline">
+                {activities.map(a => (
+                  <div key={a.id} className="timeline-entry">
+                    <div className="timeline-dot">{getActivityIcon(a.type)}</div>
+                    <div className="timeline-content">
+                      <div className="timeline-header-row">
+                        <span className="timeline-type">{a.type?.replace('_', ' ')}</span>
+                        <span className="timeline-date">
+                          {new Date(a.created_at).toLocaleDateString()}{' '}
+                          {new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {a.notes && <p className="timeline-notes">{a.notes}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Add Note */}
           <div className="profile-card">
@@ -503,34 +537,6 @@ const LeadProfilePage = () => {
                 ))
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Right Column - Activity Timeline */}
-        <div className="profile-right">
-          <div className="profile-card">
-            <h3>Activity Timeline</h3>
-            {activities.length === 0 ? (
-              <p className="empty-msg">No activity recorded yet.</p>
-            ) : (
-              <div className="timeline">
-                {activities.map(a => (
-                  <div key={a.id} className="timeline-entry">
-                    <div className="timeline-dot">{getActivityIcon(a.type)}</div>
-                    <div className="timeline-content">
-                      <div className="timeline-header-row">
-                        <span className="timeline-type">{a.type?.replace('_', ' ')}</span>
-                        <span className="timeline-date">
-                          {new Date(a.created_at).toLocaleDateString()}{' '}
-                          {new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      {a.notes && <p className="timeline-notes">{a.notes}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* AI Summary - Commented Out */}
