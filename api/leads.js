@@ -182,7 +182,12 @@ function formatTelegramLeadMessage({
 }
 
 async function sendTelegramLeadNotification(payload) {
+  console.log('[Telegram] lead notification requested')
   if (!telegramBotToken || !telegramChatId) {
+    console.warn('[Telegram] missing env vars', {
+      hasBotToken: Boolean(telegramBotToken),
+      hasChatId: Boolean(telegramChatId),
+    })
     return {
       enabled: false,
       sent: false,
@@ -192,6 +197,10 @@ async function sendTelegramLeadNotification(payload) {
   const text = formatTelegramLeadMessage(payload)
 
   try {
+    console.log('[Telegram] sending message', {
+      chatId: telegramChatId,
+      hasToken: Boolean(telegramBotToken),
+    })
     const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -218,12 +227,14 @@ async function sendTelegramLeadNotification(payload) {
       }
     }
     if (tgPayload?.ok === false) {
+      console.error('[Telegram] Telegram API returned ok=false', tgPayload)
       return {
         enabled: true,
         sent: false,
         error: tgPayload?.description || 'Telegram API returned ok=false',
       }
     }
+    console.log('[Telegram] message sent successfully')
     return { enabled: true, sent: true, error: null }
   } catch (err) {
     console.error('Telegram notification error:', err)
@@ -426,9 +437,11 @@ export default async function handler(req, res) {
       notes: (notes || '').trim() || null,
       customFields,
     })
+    console.log('[Telegram] lead notification result', telegram)
 
     return res.status(201).json({
       success: true,
+      api_version: 'leads-telegram-v2',
       message: 'Lead created successfully.',
       lead: {
         id: data.id,
