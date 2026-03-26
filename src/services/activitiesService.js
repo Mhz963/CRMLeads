@@ -14,7 +14,21 @@ export async function fetchActivitiesByLead(leadId) {
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return data
+
+  const creatorIds = [...new Set((data || []).map((a) => a.created_by).filter(Boolean))]
+  let nameById = {}
+  if (creatorIds.length) {
+    const { data: users } = await supabase
+      .from('crm_users')
+      .select('id, full_name, email')
+      .in('id', creatorIds)
+    nameById = Object.fromEntries((users || []).map((u) => [u.id, u.full_name || u.email || 'Unknown']))
+  }
+
+  return (data || []).map((a) => ({
+    ...a,
+    created_by_name: a.created_by ? (nameById[a.created_by] || 'Unknown') : 'System',
+  }))
 }
 
 export async function createActivity(payload) {
@@ -67,6 +81,72 @@ export async function createActivity(payload) {
   }
 
   return fallbackPayload.activity
+}
+
+export async function updateActivity(activityId, updates) {
+  const { data, error } = await supabase
+    .from('activities')
+    .update({ ...updates })
+    .eq('id', activityId)
+    .select()
+    .single()
+  if (!error) return data
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw error
+
+  const response = await fetch('/api/update-activity', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ activity_id: activityId, updates }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || error.message || 'Failed to update activity')
+  }
+  return payload.activity
+}
+
+export async function deleteActivity(activityId) {
+  const { error } = await supabase.from('activities').delete().eq('id', activityId)
+  if (!error) return
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) throw error
+
+  const response = await fetch('/api/delete-activity', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ activity_id: activityId }),
+  })
+
+  const raw = await response.text()
+  let payload = {}
+  try {
+    payload = raw ? JSON.parse(raw) : {}
+  } catch {
+    payload = {}
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || error.message || 'Failed to delete activity')
+  }
 }
 
 export async function fetchRecentActivities(limit = 10) {

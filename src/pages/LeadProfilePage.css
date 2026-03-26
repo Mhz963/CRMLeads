@@ -114,31 +114,6 @@
   margin-bottom: 0.5rem;
 }
 
-.profile-quick-contact {
-  margin-left: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  max-width: 52%;
-  justify-content: flex-end;
-}
-
-.quick-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  background: rgba(59, 130, 246, 0.08);
-  color: var(--text-secondary);
-  border-radius: 999px;
-  padding: 0.22rem 0.58rem;
-  font-size: 0.76rem;
-  line-height: 1.25;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .profile-badges {
   display: flex;
   gap: 0.5rem;
@@ -269,8 +244,8 @@
 
 /* Contact details */
 .detail-rows {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.6rem;
 }
 
@@ -602,6 +577,66 @@
   line-height: 1.5;
 }
 
+.timeline-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.timeline-author {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.timeline-note-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.timeline-action-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  border-radius: 0.3rem;
+  padding: 0.12rem 0.4rem;
+  cursor: pointer;
+}
+
+.timeline-action-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.timeline-action-btn.danger:hover {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.timeline-edit-wrap {
+  margin-top: 0.35rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.timeline-edit-wrap textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.timeline-edit-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
 /* ─── Spinning ─── */
 .spinning {
   animation: spin 1s linear infinite;
@@ -628,11 +663,8 @@
   .profile-badges {
     justify-content: center;
   }
-
-  .profile-quick-contact {
-    margin-left: 0;
-    max-width: 100%;
-    justify-content: center;
+  .detail-rows {
+    grid-template-columns: 1fr;
   }
 
   .edit-form {

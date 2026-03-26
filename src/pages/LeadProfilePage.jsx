@@ -6,7 +6,7 @@ import {
   Edit3, CheckCircle, Loader2, Trash2, Calendar, MessageSquare, Send, MapPin,
 } from 'lucide-react'
 import { fetchLeadById, updateLead, deleteLead, PIPELINE_STAGES, LEAD_TAGS } from '../services/leadsService'
-import { fetchActivitiesByLead, createActivity } from '../services/activitiesService'
+import { fetchActivitiesByLead, createActivity, updateActivity, deleteActivity } from '../services/activitiesService'
 import { fetchTasksByLead, createTask, completeTask, deleteTask } from '../services/tasksService'
 import './LeadProfilePage.css'
 
@@ -39,6 +39,13 @@ function toDisplayValue(value) {
   }
 }
 
+function normalizeUrl(url) {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `https://${raw}`
+}
+
 const LeadProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -49,6 +56,8 @@ const LeadProfilePage = () => {
   const [taskDueDate, setTaskDueDate] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
+  const [editingActivityId, setEditingActivityId] = useState(null)
+  const [editingActivityText, setEditingActivityText] = useState('')
 
   const { data: lead, isLoading: leadLoading } = useQuery({
     queryKey: ['lead', id],
@@ -128,6 +137,32 @@ const LeadProfilePage = () => {
     },
   })
 
+  const updateActivityMutation = useMutation({
+    mutationFn: ({ activityId, notes }) => updateActivity(activityId, { notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-activities', id] })
+      queryClient.invalidateQueries({ queryKey: ['recent-activities'] })
+      setEditingActivityId(null)
+      setEditingActivityText('')
+    },
+    onError: (err) => {
+      console.error('Failed to update note:', err)
+      alert(err?.message || 'Failed to update note.')
+    },
+  })
+
+  const deleteActivityMutation = useMutation({
+    mutationFn: (activityId) => deleteActivity(activityId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-activities', id] })
+      queryClient.invalidateQueries({ queryKey: ['recent-activities'] })
+    },
+    onError: (err) => {
+      console.error('Failed to delete note:', err)
+      alert(err?.message || 'Failed to delete note.')
+    },
+  })
+
   const handleStatusChange = async (newStatus) => {
     if (!lead || lead.status === newStatus) return
     const oldStatus = lead.status
@@ -156,6 +191,22 @@ const LeadProfilePage = () => {
       lead_id: id,
       due_date: taskDueDate || null,
     })
+  }
+
+  const startEditActivity = (activity) => {
+    setEditingActivityId(activity.id)
+    setEditingActivityText(activity.notes || '')
+  }
+
+  const saveEditActivity = () => {
+    const text = editingActivityText.trim()
+    if (!editingActivityId || !text) return
+    updateActivityMutation.mutate({ activityId: editingActivityId, notes: text })
+  }
+
+  const handleDeleteActivity = (activityId) => {
+    if (!window.confirm('Delete this note?')) return
+    deleteActivityMutation.mutate(activityId)
   }
 
   const handleSaveEdit = () => {
@@ -231,6 +282,13 @@ const LeadProfilePage = () => {
     lead.custom_fields && typeof lead.custom_fields === 'object' && !Array.isArray(lead.custom_fields)
       ? lead.custom_fields
       : {}
+  const websiteUrl = normalizeUrl(
+    lead.website ||
+    customFields.website ||
+    customFields.website_url ||
+    customFields.site ||
+    customFields.url
+  )
   const customFieldEntries = Object.entries(customFields).filter(([, value]) => {
     if (value === null || value === undefined) return false
     if (typeof value === 'string' && !value.trim()) return false
@@ -285,12 +343,6 @@ const LeadProfilePage = () => {
               ))}
             </select>
           </div>
-        </div>
-        <div className="profile-quick-contact">
-          {lead.email && <span className="quick-chip">{lead.email}</span>}
-          {lead.phone && <span className="quick-chip">{lead.phone}</span>}
-          {lead.services && <span className="quick-chip">{lead.services}</span>}
-          {lead.business_address && <span className="quick-chip">{lead.business_address}</span>}
         </div>
       </div>
 
@@ -372,11 +424,11 @@ const LeadProfilePage = () => {
                   <span>{lead.business_address}</span>
                 </div>
               )}
-              {lead.website && (
+              {websiteUrl && (
                 <div className="detail-row">
                   <Globe size={16} />
-                  <a href={lead.website} target="_blank" rel="noopener noreferrer">
-                    {lead.website}
+                  <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
+                    Website
                   </a>
                 </div>
               )}
@@ -388,7 +440,7 @@ const LeadProfilePage = () => {
                   </span>
                 </div>
               )}
-              {lead.services && (
+              {lead.services && !websiteUrl && (
                 <div className="detail-row">
                   <Globe size={16} />
                   <span>{lead.services}</span>
@@ -460,7 +512,60 @@ const LeadProfilePage = () => {
                           {new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      {a.notes && <p className="timeline-notes">{a.notes}</p>}
+                      <div className="timeline-meta-row">
+                        <span className="timeline-author">By: {a.created_by_name || 'System'}</span>
+                        {a.type === 'note' && (
+                          <span className="timeline-note-actions">
+                            <button
+                              type="button"
+                              className="timeline-action-btn"
+                              onClick={() => startEditActivity(a)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="timeline-action-btn danger"
+                              onClick={() => handleDeleteActivity(a.id)}
+                            >
+                              Delete
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                      {a.notes && (
+                        editingActivityId === a.id ? (
+                          <div className="timeline-edit-wrap">
+                            <textarea
+                              value={editingActivityText}
+                              onChange={(e) => setEditingActivityText(e.target.value)}
+                              rows={2}
+                            />
+                            <div className="timeline-edit-actions">
+                              <button
+                                type="button"
+                                className="btn-sm primary"
+                                onClick={saveEditActivity}
+                                disabled={!editingActivityText.trim() || updateActivityMutation.isPending}
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-sm"
+                                onClick={() => {
+                                  setEditingActivityId(null)
+                                  setEditingActivityText('')
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="timeline-notes">{a.notes}</p>
+                        )
+                      )}
                     </div>
                   </div>
                 ))}
