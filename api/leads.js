@@ -246,6 +246,69 @@ async function sendTelegramLeadNotification(payload) {
   }
 }
 
+async function sendTelegramLeadNotificationForUsers(supabaseAdmin, payload) {
+  try {
+    const { data: rows, error } = await supabaseAdmin
+      .from('user_telegram_integrations')
+      .select('user_id, telegram_bot_token, telegram_chat_id, is_enabled')
+      .eq('is_enabled', true)
+    if (error) {
+      console.error('[Telegram] user integrations fetch error:', error)
+      return { enabled: false, sent: false, mode: 'per-user', recipients: 0, successes: 0, failures: 0, error: error.message }
+    }
+
+    const targets = (rows || []).filter((r) => r.telegram_bot_token && r.telegram_chat_id)
+    if (!targets.length) {
+      return { enabled: false, sent: false, mode: 'per-user', recipients: 0, successes: 0, failures: 0, error: 'No enabled user telegram integrations.' }
+    }
+
+    const text = formatTelegramLeadMessage(payload)
+    let successes = 0
+    const failures = []
+
+    for (const target of targets) {
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${target.telegram_bot_token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: target.telegram_chat_id,
+            text,
+            disable_web_page_preview: true,
+          }),
+        })
+        const raw = await response.text()
+        let tgPayload = {}
+        try { tgPayload = raw ? JSON.parse(raw) : {} } catch { tgPayload = {} }
+        if (!response.ok || tgPayload?.ok === false) {
+          failures.push({
+            user_id: target.user_id,
+            error: tgPayload?.description || `HTTP ${response.status}`,
+          })
+        } else {
+          successes += 1
+        }
+      } catch (err) {
+        failures.push({ user_id: target.user_id, error: err?.message || 'Unknown Telegram request error' })
+      }
+    }
+
+    return {
+      enabled: true,
+      sent: successes > 0,
+      mode: 'per-user',
+      recipients: targets.length,
+      successes,
+      failures: failures.length,
+      errors: failures,
+      error: failures.length ? 'Some recipients failed.' : null,
+    }
+  } catch (err) {
+    console.error('[Telegram] per-user notification error:', err)
+    return { enabled: false, sent: false, mode: 'per-user', recipients: 0, successes: 0, failures: 0, error: err?.message || 'Failed to send per-user notifications.' }
+  }
+}
+
 export default async function handler(req, res) {
   // Set CORS headers on EVERY response (including OPTIONS)
   Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -429,14 +492,18 @@ export default async function handler(req, res) {
     })
 
     // Send notification, but never fail lead creation if Telegram is down.
-    const telegram = await sendTelegramLeadNotification({
+    const telegramPayload = {
       leadName,
       leadPhone,
       leadEmail,
       service: (services || '').trim() || customFields?.service || null,
       notes: (notes || '').trim() || null,
       customFields,
-    })
+    }
+    let telegram = await sendTelegramLeadNotificationForUsers(supabase, telegramPayload)
+    if (!telegram?.sent && telegram?.recipients === 0) {
+      telegram = await sendTelegramLeadNotification(telegramPayload)
+    }
     console.log('[Telegram] lead notification result', telegram)
 
     return res.status(201).json({

@@ -8,6 +8,7 @@ import TasksPage from './pages/TasksPage'
 import DashboardPage from './pages/DashboardPage'
 import PipelinePage from './pages/PipelinePage'
 import LeadProfilePage from './pages/LeadProfilePage'
+import IntegrationsPage from './pages/IntegrationsPage'
 import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
 import AdminPage from './pages/AdminPage'
@@ -150,6 +151,10 @@ function App() {
             <Route
               path="/pipeline"
               element={isLoggedIn ? <PipelinePage /> : <Navigate to="/signin" replace />}
+            />
+            <Route
+              path="/integrations"
+              element={isLoggedIn ? <IntegrationsPage /> : <Navigate to="/signin" replace />}
             />
             <Route path="/gbm" element={<Navigate to="/dashboard" replace />} />
             <Route

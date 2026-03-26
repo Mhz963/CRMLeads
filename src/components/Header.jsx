@@ -5,6 +5,7 @@ import {
   Users,
   KanbanSquare,
   ClipboardList,
+  MessageCircle,
   Shield,
   LogOut,
 } from 'lucide-react'
@@ -58,6 +59,13 @@ const Header = ({ user, userProfile }) => {
           >
             <KanbanSquare className="nav-icon" />
             Pipeline
+          </NavLink>
+          <NavLink
+            to="/integrations"
+            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+          >
+            <MessageCircle className="nav-icon" />
+            Integrations
           </NavLink>
           {!isBusinessMember && (
             <NavLink
