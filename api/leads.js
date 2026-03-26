@@ -182,7 +182,13 @@ function formatTelegramLeadMessage({
 }
 
 async function sendTelegramLeadNotification(payload) {
-  if (!telegramBotToken || !telegramChatId) return
+  if (!telegramBotToken || !telegramChatId) {
+    return {
+      enabled: false,
+      sent: false,
+      error: 'TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing',
+    }
+  }
   const text = formatTelegramLeadMessage(payload)
 
   try {
@@ -195,12 +201,37 @@ async function sendTelegramLeadNotification(payload) {
         disable_web_page_preview: true,
       }),
     })
-    if (!response.ok) {
-      const raw = await response.text()
-      console.error('Telegram sendMessage failed:', raw)
+    const raw = await response.text()
+    let tgPayload = {}
+    try {
+      tgPayload = raw ? JSON.parse(raw) : {}
+    } catch {
+      tgPayload = {}
     }
+
+    if (!response.ok) {
+      console.error('Telegram sendMessage failed:', raw)
+      return {
+        enabled: true,
+        sent: false,
+        error: tgPayload?.description || `HTTP ${response.status}`,
+      }
+    }
+    if (tgPayload?.ok === false) {
+      return {
+        enabled: true,
+        sent: false,
+        error: tgPayload?.description || 'Telegram API returned ok=false',
+      }
+    }
+    return { enabled: true, sent: true, error: null }
   } catch (err) {
     console.error('Telegram notification error:', err)
+    return {
+      enabled: true,
+      sent: false,
+      error: err?.message || 'Unknown Telegram request error',
+    }
   }
 }
 
@@ -386,8 +417,8 @@ export default async function handler(req, res) {
       created_by: null,
     })
 
-    // Non-blocking notification: lead creation should succeed even if Telegram fails.
-    sendTelegramLeadNotification({
+    // Send notification, but never fail lead creation if Telegram is down.
+    const telegram = await sendTelegramLeadNotification({
       leadName,
       leadPhone,
       leadEmail,
@@ -411,6 +442,7 @@ export default async function handler(req, res) {
         custom_fields: Object.keys(customFields).length ? customFields : null,
         created_at: data.created_at,
       },
+      telegram,
     })
   } catch (err) {
     console.error('API error:', err)

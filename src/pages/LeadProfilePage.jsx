@@ -96,6 +96,10 @@ const LeadProfilePage = () => {
       queryClient.invalidateQueries({ queryKey: ['recent-activities'] })
       setNoteText('')
     },
+    onError: (err) => {
+      console.error('Failed to add interaction note:', err)
+      alert(err?.message || 'Failed to add interaction note.')
+    },
   })
 
   const addTaskMutation = useMutation({
