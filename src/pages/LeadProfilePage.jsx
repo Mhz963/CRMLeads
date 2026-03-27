@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Mail, Phone, Globe, Tag, Clock, Plus,
-  Edit3, CheckCircle, Loader2, Trash2, Calendar, MessageSquare, Send, MapPin,
+  ArrowLeft, Mail, Phone, Globe, Tag, Clock,
+  Edit3, Loader2, Trash2, MessageSquare, Send, MapPin,
 } from 'lucide-react'
 import { fetchLeadById, updateLead, deleteLead, PIPELINE_STAGES, LEAD_TAGS } from '../services/leadsService'
 import { fetchActivitiesByLead, createActivity, updateActivity, deleteActivity } from '../services/activitiesService'
-import { fetchTasksByLead, createTask, completeTask, deleteTask } from '../services/tasksService'
 import './LeadProfilePage.css'
 
 const TAG_STYLES = {
@@ -52,8 +51,6 @@ const LeadProfilePage = () => {
   const queryClient = useQueryClient()
 
   const [noteText, setNoteText] = useState('')
-  const [taskTitle, setTaskTitle] = useState('')
-  const [taskDueDate, setTaskDueDate] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [editingActivityId, setEditingActivityId] = useState(null)
@@ -67,12 +64,6 @@ const LeadProfilePage = () => {
   const { data: activities = [] } = useQuery({
     queryKey: ['lead-activities', id],
     queryFn: () => fetchActivitiesByLead(id),
-    enabled: !!id,
-  })
-
-  const { data: tasks = [] } = useQuery({
-    queryKey: ['lead-tasks', id],
-    queryFn: () => fetchTasksByLead(id),
     enabled: !!id,
   })
 
@@ -108,32 +99,6 @@ const LeadProfilePage = () => {
     onError: (err) => {
       console.error('Failed to add interaction note:', err)
       alert(err?.message || 'Failed to add interaction note.')
-    },
-  })
-
-  const addTaskMutation = useMutation({
-    mutationFn: (payload) => createTask(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-tasks', id] })
-      queryClient.invalidateQueries({ queryKey: ['due-tasks'] })
-      setTaskTitle('')
-      setTaskDueDate('')
-    },
-  })
-
-  const completeTaskMutation = useMutation({
-    mutationFn: (taskId) => completeTask(taskId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-tasks', id] })
-      queryClient.invalidateQueries({ queryKey: ['due-tasks'] })
-    },
-  })
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: (taskId) => deleteTask(taskId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-tasks', id] })
-      queryClient.invalidateQueries({ queryKey: ['due-tasks'] })
     },
   })
 
@@ -182,15 +147,6 @@ const LeadProfilePage = () => {
   const handleAddNote = () => {
     if (!noteText.trim()) return
     addNoteMutation.mutate(noteText.trim())
-  }
-
-  const handleAddTask = () => {
-    if (!taskTitle.trim()) return
-    addTaskMutation.mutate({
-      title: taskTitle.trim(),
-      lead_id: id,
-      due_date: taskDueDate || null,
-    })
   }
 
   const startEditActivity = (activity) => {
@@ -591,56 +547,6 @@ const LeadProfilePage = () => {
                 <Send size={14} />
                 Add Note
               </button>
-            </div>
-          </div>
-
-          {/* Follow-up Reminders */}
-          <div className="profile-card">
-            <h3><Calendar size={18} /> Follow-up Reminders</h3>
-            <div className="add-task-form">
-              <input
-                type="text"
-                placeholder="Reminder title..."
-                value={taskTitle}
-                onChange={e => setTaskTitle(e.target.value)}
-              />
-              <input
-                type="date"
-                value={taskDueDate}
-                onChange={e => setTaskDueDate(e.target.value)}
-              />
-              <button
-                className="btn-sm primary"
-                onClick={handleAddTask}
-                disabled={!taskTitle.trim() || addTaskMutation.isPending}
-              >
-                <Plus size={14} />
-                Add
-              </button>
-            </div>
-            <div className="tasks-list">
-              {tasks.length === 0 ? (
-                <p className="empty-msg">No reminders set.</p>
-              ) : (
-                tasks.map(t => (
-                  <div key={t.id} className={`task-item ${t.status === 'completed' ? 'completed' : ''}`}>
-                    <button
-                      className="task-check"
-                      onClick={() => t.status !== 'completed' && completeTaskMutation.mutate(t.id)}
-                      title={t.status === 'completed' ? 'Completed' : 'Mark complete'}
-                    >
-                      <CheckCircle size={16} />
-                    </button>
-                    <div className="task-info">
-                      <span className="task-name">{t.title}</span>
-                      {t.due_date && <span className="task-due">{new Date(t.due_date).toLocaleDateString()}</span>}
-                    </div>
-                    <button className="task-delete" onClick={() => deleteTaskMutation.mutate(t.id)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))
-              )}
             </div>
           </div>
 

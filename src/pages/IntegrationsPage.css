@@ -18,7 +18,7 @@
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 1rem;
-  max-width: 720px;
+  max-width: 820px;
 }
 
 .integration-title {
@@ -79,4 +79,18 @@
 
 .integration-info {
   color: var(--text-secondary);
+}
+
+.integration-link {
+  margin-top: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  text-decoration: none;
+  color: var(--primary);
+  font-size: 0.86rem;
+}
+
+.integration-link:hover {
+  text-decoration: underline;
 }

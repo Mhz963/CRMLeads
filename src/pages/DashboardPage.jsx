@@ -4,8 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
-import { fetchDashboardStats, PIPELINE_STAGES } from '../services/leadsService'
-import { fetchDueTasks } from '../services/tasksService'
+import { fetchDashboardStats, fetchLeads, PIPELINE_STAGES } from '../services/leadsService'
 import { fetchRecentActivities } from '../services/activitiesService'
 import './DashboardPage.css'
 
@@ -17,24 +16,37 @@ const CHART_COLORS = [
   'rgba(0, 139, 255, 0.25)',
 ]
 
+function getLeadPriority(lead) {
+  const status = lead?.status || 'New Lead'
+  if (status === 'Closed') return 'Cold'
+  if (String(lead?.tag || '').toLowerCase() === 'hot') return 'Hot'
+  const touchDate = lead?.updated_at || lead?.created_at
+  const touchedDaysAgo = touchDate
+    ? Math.floor((Date.now() - new Date(touchDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 999
+  if (status === 'New Lead' && touchedDaysAgo <= 2) return 'Hot'
+  if (['Contacted', 'Interested', 'Proposal'].includes(status) && touchedDaysAgo <= 7) return 'Warm'
+  if (touchedDaysAgo <= 14) return 'Warm'
+  return 'Cold'
+}
+
 const DashboardPage = () => {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: fetchDashboardStats,
   })
 
-  const { data: dueTasks } = useQuery({
-    queryKey: ['due-tasks'],
-    queryFn: fetchDueTasks,
-  })
-
   const { data: recentActivities } = useQuery({
     queryKey: ['recent-activities'],
     queryFn: () => fetchRecentActivities(8),
   })
+  const { data: allLeads = [] } = useQuery({
+    queryKey: ['leads'],
+    queryFn: fetchLeads,
+  })
 
   const s = stats || { totalLeads: 0, byStage: {}, conversionRate: 0, bySource: {}, byTag: {}, newThisWeek: 0 }
-  const followUpsDue = dueTasks?.length || 0
+  const recentActivityCount = recentActivities?.length || 0
 
   const stageData = PIPELINE_STAGES.map(stage => ({
     name: stage,
@@ -42,6 +54,37 @@ const DashboardPage = () => {
   }))
 
   const sourceData = Object.entries(s.bySource).map(([name, value]) => ({ name, value }))
+  const smartKpis = (() => {
+    const byPriority = { Hot: 0, Warm: 0, Cold: 0 }
+    allLeads.forEach((lead) => {
+      byPriority[getLeadPriority(lead)] += 1
+    })
+    return {
+      newLeads: s.byStage['New Lead'] || 0,
+      conversionPercent: s.conversionRate || 0,
+      pendingFollowUps:
+        (s.byStage['New Lead'] || 0) +
+        (s.byStage.Contacted || 0) +
+        (s.byStage.Interested || 0) +
+        (s.byStage.Proposal || 0),
+      hotLeads: byPriority.Hot || 0,
+      byPriority,
+    }
+  })()
+  const miniStageData = [
+    { label: 'New', value: s.byStage['New Lead'] || 0 },
+    { label: 'Contacted', value: s.byStage.Contacted || 0 },
+    { label: 'Interested', value: s.byStage.Interested || 0 },
+    { label: 'Proposal', value: s.byStage.Proposal || 0 },
+    { label: 'Closed', value: s.byStage.Closed || 0 },
+  ]
+  const miniPriorityData = [
+    { label: 'Hot', value: smartKpis.byPriority.Hot || 0 },
+    { label: 'Warm', value: smartKpis.byPriority.Warm || 0 },
+    { label: 'Cold', value: smartKpis.byPriority.Cold || 0 },
+  ]
+  const maxStage = Math.max(...miniStageData.map((x) => x.value), 1)
+  const maxPriority = Math.max(...miniPriorityData.map((x) => x.value), 1)
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -110,9 +153,53 @@ const DashboardPage = () => {
             <Clock size={22} />
           </div>
           <div>
-            <p className="metric-label">Follow-ups Due</p>
-            <p className="metric-value">{followUpsDue}</p>
+            <p className="metric-label">Recent Activities</p>
+            <p className="metric-value">{recentActivityCount}</p>
           </div>
+        </div>
+      </div>
+      <div className="smart-kpi-cards">
+        <div className="smart-kpi-card">
+          <p className="metric-label">New Leads</p>
+          <p className="metric-value">{smartKpis.newLeads}</p>
+        </div>
+        <div className="smart-kpi-card">
+          <p className="metric-label">Conversion %</p>
+          <p className="metric-value">{smartKpis.conversionPercent}%</p>
+        </div>
+        <div className="smart-kpi-card">
+          <p className="metric-label">Pending Follow-ups</p>
+          <p className="metric-value">{smartKpis.pendingFollowUps}</p>
+        </div>
+        <div className="smart-kpi-card">
+          <p className="metric-label">Hot Leads</p>
+          <p className="metric-value">{smartKpis.hotLeads}</p>
+        </div>
+      </div>
+      <div className="mini-charts-row">
+        <div className="mini-chart-card">
+          <h4>Mini Pipeline View</h4>
+          {miniStageData.map((item) => (
+            <div className="mini-row" key={item.label}>
+              <span>{item.label}</span>
+              <div className="mini-track">
+                <div className="mini-fill stage" style={{ width: `${(item.value / maxStage) * 100}%` }} />
+              </div>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="mini-chart-card">
+          <h4>Mini Priority View</h4>
+          {miniPriorityData.map((item) => (
+            <div className="mini-row" key={item.label}>
+              <span>{item.label}</span>
+              <div className="mini-track">
+                <div className={`mini-fill ${item.label.toLowerCase()}`} style={{ width: `${(item.value / maxPriority) * 100}%` }} />
+              </div>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -170,7 +257,7 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ─── Bottom: Activity + Due Tasks ─── */}
+      {/* ─── Bottom: Activity ─── */}
       <div className="bottom-row">
         <div className="feed-card">
           <h3>Recent Activity</h3>
@@ -188,26 +275,6 @@ const DashboardPage = () => {
                     </span>
                     <span className="activity-time">{formatTime(a.created_at)}</span>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="feed-card">
-          <h3>Follow-ups Due</h3>
-          {(!dueTasks || dueTasks.length === 0) ? (
-            <p className="empty-text">No follow-ups due. You're all caught up!</p>
-          ) : (
-            <div className="due-tasks-list">
-              {dueTasks.map(t => (
-                <div key={t.id} className="due-task-item">
-                  <Clock size={16} className="due-icon" />
-                  <div className="due-info">
-                    <span className="due-title">{t.title}</span>
-                    <span className="due-lead">{t.leads?.full_name || ''}</span>
-                  </div>
-                  <span className="due-date">{new Date(t.due_date).toLocaleDateString()}</span>
                 </div>
               ))}
             </div>

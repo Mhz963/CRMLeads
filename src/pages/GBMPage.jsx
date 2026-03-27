@@ -6,6 +6,7 @@ import { supabase } from '../services/supabaseClient'
 import './GBMPage.css'
 
 const BUSINESS_STATUSES = ['New', 'Contacted', 'Qualified', 'Closed']
+const LAST_CONTACT_STORAGE_KEY = 'gbm-last-contact-map'
 
 function normalizeBusinessStatus(status) {
   const raw = String(status || '').trim().toLowerCase()
@@ -24,6 +25,22 @@ function formatBusinessTypes(types) {
     .map((t) => String(t || '').replace(/_/g, ' ').trim())
     .filter(Boolean)
     .join(', ')
+}
+
+function getBusinessKey(biz) {
+  return biz?.place_id || `${biz?.name || ''}-${biz?.address || ''}`
+}
+
+function readLastContactMap() {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(LAST_CONTACT_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function mapGooglePlace(place) {
@@ -150,6 +167,7 @@ const GBMPage = () => {
   const [countryFilter, setCountryFilter] = useState('')
   const [reviewsSort, setReviewsSort] = useState('reviews_desc')
   const [statusByPlaceId, setStatusByPlaceId] = useState({})
+  const [lastContactByKey, setLastContactByKey] = useState(() => readLastContactMap())
   const [viewBusiness, setViewBusiness] = useState(null)
   const [feedbackInput, setFeedbackInput] = useState('')
   const [feedbackByKey, setFeedbackByKey] = useState({})
@@ -206,13 +224,13 @@ const GBMPage = () => {
   }
 
   const applyBusinessPatch = (targetBiz, patch) => {
-    const targetKey = targetBiz.place_id || `${targetBiz.name}-${targetBiz.address}`
+    const targetKey = getBusinessKey(targetBiz)
     setNewModeBusinesses((prev) => prev.map((biz) => {
-      const key = biz.place_id || `${biz.name}-${biz.address}`
+      const key = getBusinessKey(biz)
       return key === targetKey ? { ...biz, ...patch } : biz
     }))
     if (viewBusiness) {
-      const viewKey = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+      const viewKey = getBusinessKey(viewBusiness)
       if (viewKey === targetKey) {
         setViewBusiness((prev) => (prev ? { ...prev, ...patch } : prev))
       }
@@ -246,6 +264,10 @@ const GBMPage = () => {
     const prevStatus = getBusinessStatusLabel(biz)
 
     applyBusinessPatch(biz, { business_status: nextStatus })
+    if (['Contacted', 'Qualified', 'Closed'].includes(nextStatus)) {
+      const rowKey = getBusinessKey(biz)
+      setLastContactByKey((prev) => ({ ...prev, [rowKey]: new Date().toISOString() }))
+    }
     if (biz.place_id) {
       setStatusByPlaceId((prev) => ({ ...prev, [biz.place_id]: nextStatus }))
       try {
@@ -448,9 +470,9 @@ const GBMPage = () => {
 
   const saveEditBusiness = async () => {
     if (!editingBusiness) return
-    const rowKey = editingBusiness.place_id || `${editingBusiness.name}-${editingBusiness.address}`
+    const rowKey = getBusinessKey(editingBusiness)
     const applyUpdate = (arr) => arr.map((biz) => {
-      const key = biz.place_id || `${biz.name}-${biz.address}`
+      const key = getBusinessKey(biz)
       if (key !== rowKey) return biz
       return {
         ...biz,
@@ -483,6 +505,9 @@ const GBMPage = () => {
         [editingBusiness.place_id]: editForm.status,
       }))
     }
+    if (['Contacted', 'Qualified', 'Closed'].includes(editForm.status)) {
+      setLastContactByKey((prev) => ({ ...prev, [rowKey]: new Date().toISOString() }))
+    }
 
     if (editingBusiness.place_id) {
       try {
@@ -503,13 +528,69 @@ const GBMPage = () => {
   const sendFeedback = () => {
     const text = feedbackInput.trim()
     if (!text || !viewBusiness) return
-    const key = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
+    const key = getBusinessKey(viewBusiness)
     setFeedbackByKey((prev) => ({
       ...prev,
       [key]: [...(prev[key] || []), { text, at: new Date().toISOString() }],
     }))
+    setLastContactByKey((prev) => ({ ...prev, [key]: new Date().toISOString() }))
     setFeedbackInput('')
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(LAST_CONTACT_STORAGE_KEY, JSON.stringify(lastContactByKey))
+  }, [lastContactByKey])
+
+  const getPriorityMeta = (biz) => {
+    const status = getBusinessStatusLabel(biz)
+    const key = getBusinessKey(biz)
+    const lastContactAt = lastContactByKey[key]
+    const hasLastContact = Boolean(lastContactAt)
+    const lastContactTime = hasLastContact ? new Date(lastContactAt).getTime() : null
+    const daysSinceLastContact = lastContactTime
+      ? Math.floor((Date.now() - lastContactTime) / (1000 * 60 * 60 * 24))
+      : null
+
+    if (status === 'Closed') {
+      return { label: 'Cold', className: 'cold', reason: 'Closed lead' }
+    }
+    if (status === 'New' && !hasLastContact) {
+      return { label: 'Hot', className: 'hot', reason: 'Fresh lead without first contact' }
+    }
+    if (daysSinceLastContact !== null && daysSinceLastContact <= 2) {
+      return { label: 'Hot', className: 'hot', reason: 'Recent follow-up in last 48h' }
+    }
+    if (daysSinceLastContact !== null && daysSinceLastContact <= 7) {
+      return { label: 'Warm', className: 'warm', reason: 'Follow-up in last 7 days' }
+    }
+    if (status === 'Contacted' || status === 'Qualified') {
+      return { label: 'Warm', className: 'warm', reason: 'In progress lead' }
+    }
+    return { label: 'Cold', className: 'cold', reason: 'No recent activity' }
+  }
+
+  const dashboardMetrics = useMemo(() => {
+    const total = visibleBusinesses.length
+    const byStatus = { New: 0, Contacted: 0, Qualified: 0, Closed: 0 }
+    const byPriority = { Hot: 0, Warm: 0, Cold: 0 }
+    visibleBusinesses.forEach((biz) => {
+      const status = getBusinessStatusLabel(biz)
+      byStatus[status] = (byStatus[status] || 0) + 1
+      const priority = getPriorityMeta(biz).label
+      byPriority[priority] = (byPriority[priority] || 0) + 1
+    })
+    const conversionPct = total ? ((byStatus.Closed / total) * 100).toFixed(1) : '0.0'
+    const pendingFollowUps = byStatus.New + byStatus.Contacted + byStatus.Qualified
+    return {
+      total,
+      byStatus,
+      byPriority,
+      conversionPct,
+      pendingFollowUps,
+      hotLeads: byPriority.Hot,
+    }
+  }, [visibleBusinesses, statusByPlaceId, lastContactByKey])
 
   if (viewBusiness) {
     const viewKey = viewBusiness.place_id || `${viewBusiness.name}-${viewBusiness.address}`
@@ -719,6 +800,66 @@ const GBMPage = () => {
           </span>
         )}
       </div>
+      <div className="gbm-dashboard-grid">
+        <article className="gbm-kpi-card">
+          <span className="kpi-label">New Leads</span>
+          <strong className="kpi-value">{dashboardMetrics.byStatus.New}</strong>
+          <small className="kpi-subtext">Leads waiting for first outreach</small>
+        </article>
+        <article className="gbm-kpi-card">
+          <span className="kpi-label">Conversion %</span>
+          <strong className="kpi-value">{dashboardMetrics.conversionPct}%</strong>
+          <small className="kpi-subtext">Closed leads out of visible leads</small>
+        </article>
+        <article className="gbm-kpi-card">
+          <span className="kpi-label">Pending Follow-ups</span>
+          <strong className="kpi-value">{dashboardMetrics.pendingFollowUps}</strong>
+          <small className="kpi-subtext">New, contacted, and qualified leads</small>
+        </article>
+        <article className="gbm-kpi-card">
+          <span className="kpi-label">Hot Leads</span>
+          <strong className="kpi-value">{dashboardMetrics.hotLeads}</strong>
+          <small className="kpi-subtext">High-priority opportunities</small>
+        </article>
+      </div>
+      <div className="gbm-mini-charts">
+        <article className="gbm-mini-chart-card">
+          <h4>Pipeline Stages</h4>
+          <div className="mini-chart-rows">
+            {BUSINESS_STATUSES.map((status) => {
+              const count = dashboardMetrics.byStatus[status] || 0
+              const widthPct = dashboardMetrics.total ? (count / dashboardMetrics.total) * 100 : 0
+              return (
+                <div className="mini-chart-row" key={status}>
+                  <span>{status}</span>
+                  <div className="mini-chart-track">
+                    <div className="mini-chart-fill stage" style={{ width: `${widthPct}%` }} />
+                  </div>
+                  <strong>{count}</strong>
+                </div>
+              )
+            })}
+          </div>
+        </article>
+        <article className="gbm-mini-chart-card">
+          <h4>Lead Priority</h4>
+          <div className="mini-chart-rows">
+            {['Hot', 'Warm', 'Cold'].map((level) => {
+              const count = dashboardMetrics.byPriority[level] || 0
+              const widthPct = dashboardMetrics.total ? (count / dashboardMetrics.total) * 100 : 0
+              return (
+                <div className="mini-chart-row" key={level}>
+                  <span>{level}</span>
+                  <div className="mini-chart-track">
+                    <div className={`mini-chart-fill ${String(level).toLowerCase()}`} style={{ width: `${widthPct}%` }} />
+                  </div>
+                  <strong>{count}</strong>
+                </div>
+              )
+            })}
+          </div>
+        </article>
+      </div>
       <div ref={resultsTopRef} />
       {isLoading ? (
         <div className="gbm-loading">
@@ -748,15 +889,17 @@ const GBMPage = () => {
                   <th>Rating</th>
                   <th>Reviews</th>
                   <th>Status</th>
+                  <th>Priority</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleBusinesses.length === 0 ? (
-                  <tr><td colSpan="10" className="gbm-empty">No results found.</td></tr>
+                  <tr><td colSpan="11" className="gbm-empty">No results found.</td></tr>
                 ) : (
                   paginatedBusinesses.map((biz) => {
-                    const rowKey = biz.place_id || `${biz.name}-${biz.address}`
+                    const rowKey = getBusinessKey(biz)
+                    const priorityMeta = getPriorityMeta(biz)
                     return (
                       <tr key={rowKey}>
                         <td className="biz-name">{biz.name}</td>
@@ -790,6 +933,11 @@ const GBMPage = () => {
                               <option key={status} value={status}>{status}</option>
                             ))}
                           </select>
+                        </td>
+                        <td>
+                          <span className={`priority-badge ${priorityMeta.className}`} title={priorityMeta.reason}>
+                            {priorityMeta.label}
+                          </span>
                         </td>
                         <td>
                           <div className="gbm-row-actions">

@@ -4,7 +4,6 @@ import ParticleBackground from './components/ParticleBackground'
 import Header from './components/Header'
 import NotificationToast from './components/NotificationToast'
 import LeadsPage from './pages/LeadsPage'
-import TasksPage from './pages/TasksPage'
 import DashboardPage from './pages/DashboardPage'
 import PipelinePage from './pages/PipelinePage'
 import LeadProfilePage from './pages/LeadProfilePage'
@@ -95,7 +94,6 @@ function App() {
 
   const isLoggedIn = !!user
   const role = userProfile?.role || null
-  const isBusinessMember = role === 'business_member'
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
   const showParticles = isPublicRoute && !isLoggedIn
 
@@ -157,16 +155,6 @@ function App() {
               element={isLoggedIn ? <IntegrationsPage /> : <Navigate to="/signin" replace />}
             />
             <Route path="/gbm" element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/tasks"
-              element={
-                isLoggedIn ? (
-                  isBusinessMember ? <Navigate to="/dashboard" replace /> : <TasksPage />
-                ) : (
-                  <Navigate to="/signin" replace />
-                )
-              }
-            />
             <Route
               path="/admin"
               element={

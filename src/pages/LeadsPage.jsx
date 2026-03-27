@@ -42,6 +42,30 @@ const EMPTY_WEB_FORM = {
   additional_message: '',
 }
 
+function getLeadPriorityMeta(lead) {
+  const status = lead?.status || 'New Lead'
+  if (status === 'Closed') {
+    return { label: 'Cold', className: 'cold' }
+  }
+  if (String(lead?.tag || '').toLowerCase() === 'hot') {
+    return { label: 'Hot', className: 'hot' }
+  }
+  const touchDate = lead?.updated_at || lead?.created_at
+  const daysSinceTouch = touchDate
+    ? Math.floor((Date.now() - new Date(touchDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 999
+  if (status === 'New Lead' && daysSinceTouch <= 2) {
+    return { label: 'Hot', className: 'hot' }
+  }
+  if (['Contacted', 'Interested', 'Proposal'].includes(status) && daysSinceTouch <= 7) {
+    return { label: 'Warm', className: 'warm' }
+  }
+  if (daysSinceTouch <= 14) {
+    return { label: 'Warm', className: 'warm' }
+  }
+  return { label: 'Cold', className: 'cold' }
+}
+
 const LeadsPage = () => {
   const queryClient = useQueryClient()
   const fileInputRef = useRef(null)
@@ -346,12 +370,15 @@ const LeadsPage = () => {
                 <SortHeader field="status">Status</SortHeader>
                 <SortHeader field="source">Source</SortHeader>
                 <th>Tag</th>
+                <th>Priority</th>
                 <SortHeader field="created_at">Created</SortHeader>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {displayedLeads.map((lead) => (
+              {displayedLeads.map((lead) => {
+                const priority = getLeadPriorityMeta(lead)
+                return (
                 <tr key={lead.id}>
                   <td>
                     <Link to={`/leads/${lead.id}`} className="lead-name-link">
@@ -394,6 +421,9 @@ const LeadsPage = () => {
                       <span className="cell-muted">—</span>
                     )}
                   </td>
+                  <td>
+                    <span className={`priority-pill ${priority.className}`}>{priority.label}</span>
+                  </td>
                   <td className="cell-muted">
                     {new Date(lead.created_at).toLocaleDateString()}
                   </td>
@@ -412,7 +442,7 @@ const LeadsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

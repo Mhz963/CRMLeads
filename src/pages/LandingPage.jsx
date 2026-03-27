@@ -11,7 +11,6 @@ import {
   CheckCircle,
   LayoutDashboard,
   Mail,
-  Calendar,
 } from 'lucide-react'
 import './LandingPage.css'
 
@@ -40,11 +39,6 @@ const features = [
     icon: <Mail className="feature-icon" />,
     title: 'Email Integration',
     desc: 'Send emails, track opens, use templates, and build automated follow-up sequences.',
-  },
-  {
-    icon: <Calendar className="feature-icon" />,
-    title: 'Tasks & Reminders',
-    desc: 'Never miss a follow-up. Create tasks, set due dates, and get automatic reminders.',
   },
 ]
 
@@ -166,7 +160,6 @@ const LandingPage = () => {
               <li><CheckCircle size={16} /> Access own leads &amp; contacts</li>
               <li><CheckCircle size={16} /> Update lead statuses</li>
               <li><CheckCircle size={16} /> Log activities &amp; notes</li>
-              <li><CheckCircle size={16} /> Manage assigned tasks</li>
               <li><CheckCircle size={16} /> View personal dashboard</li>
             </ul>
           </div>

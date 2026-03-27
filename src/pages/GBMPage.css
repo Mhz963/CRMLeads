@@ -515,6 +515,140 @@
   padding: 0.48rem 0.62rem;
 }
 
+.gbm-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.gbm-kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kpi-value {
+  font-size: 1.35rem;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.kpi-subtext {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.gbm-mini-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.7rem;
+}
+
+.gbm-mini-chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  padding: 0.75rem 0.8rem;
+}
+
+.gbm-mini-chart-card h4 {
+  font-size: 0.84rem;
+  margin-bottom: 0.55rem;
+}
+
+.mini-chart-rows {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mini-chart-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 28px;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mini-chart-row span {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.mini-chart-row strong {
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.mini-chart-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(107, 114, 128, 0.15);
+  overflow: hidden;
+}
+
+.mini-chart-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 250ms ease;
+}
+
+.mini-chart-fill.stage {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+}
+
+.mini-chart-fill.hot {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.mini-chart-fill.warm {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.mini-chart-fill.cold {
+  background: linear-gradient(90deg, #60a5fa, #2563eb);
+}
+
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 0.14rem 0.42rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+}
+
+.priority-badge.hot {
+  color: #b91c1c;
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(254, 226, 226, 0.7);
+}
+
+.priority-badge.warm {
+  color: #92400e;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(254, 243, 199, 0.7);
+}
+
+.priority-badge.cold {
+  color: #1d4ed8;
+  border-color: rgba(96, 165, 250, 0.4);
+  background: rgba(219, 234, 254, 0.75);
+}
+
 .gbm-table-wrap {
   border-radius: 1rem;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.05);

@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Users,
   KanbanSquare,
-  ClipboardList,
   MessageCircle,
   Shield,
   LogOut,
@@ -28,7 +27,6 @@ const Header = ({ user, userProfile }) => {
   const role = userProfile?.role
   const displayName = userProfile?.full_name || user?.email || ''
   const initial = displayName.charAt(0).toUpperCase()
-  const isBusinessMember = role === 'business_member'
 
   return (
     <header className="header">
@@ -67,15 +65,6 @@ const Header = ({ user, userProfile }) => {
             <MessageCircle className="nav-icon" />
             Integrations
           </NavLink>
-          {!isBusinessMember && (
-            <NavLink
-              to="/tasks"
-              className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-            >
-              <ClipboardList className="nav-icon" />
-              Tasks
-            </NavLink>
-          )}
           {role === 'admin' && (
             <NavLink
               to="/admin"

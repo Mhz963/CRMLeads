@@ -282,6 +282,30 @@
   white-space: nowrap;
 }
 
+.priority-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.priority-pill.hot {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.priority-pill.warm {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.priority-pill.cold {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.14);
+}
+
 .row-actions {
   display: flex;
   gap: 0.3rem;
