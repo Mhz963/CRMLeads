@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole } from './_lib/access.js'
+import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole } from '../lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
