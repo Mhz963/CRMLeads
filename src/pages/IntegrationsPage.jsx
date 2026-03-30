@@ -209,7 +209,7 @@ const IntegrationsPage = () => {
           </label>
         </div>
         <p className="integration-help">
-          Setup flow: create a Power BI dashboard -> publish it -> paste report URL here.
+          Setup flow: create a Power BI dashboard -&gt; publish it -&gt; paste report URL here.
         </p>
         {powerBiEnabled && powerBiReport && (
           <a className="integration-link" href={powerBiReport} target="_blank" rel="noreferrer">
@@ -251,7 +251,7 @@ const IntegrationsPage = () => {
           </label>
         </div>
         <p className="integration-help">
-          Setup flow: create Azure App Registration -> grant Dynamics API permissions -> use OAuth for sync endpoint.
+          Setup flow: create Azure App Registration -&gt; grant Dynamics API permissions -&gt; use OAuth for sync endpoint.
         </p>
         {dynamicsEnabled && dynamicsOrgUrl && (
           <a className="integration-link" href={dynamicsOrgUrl} target="_blank" rel="noreferrer">
