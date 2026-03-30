@@ -190,6 +190,9 @@
 .role-badge-admin {
   color: var(--primary);
 }
+.role-badge-super_admin {
+  color: #7c3aed;
+}
 .role-badge-team_member {
   color: var(--text-muted);
 }

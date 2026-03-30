@@ -13,6 +13,7 @@ import AuthPage from './pages/AuthPage'
 import AdminPage from './pages/AdminPage'
 import { supabase } from './services/supabaseClient'
 import { syncUserProfile } from './services/authService'
+import { fetchMySubscription, isSubscriptionActive } from './services/subscriptionService'
 import useNotificationStore from './stores/notificationStore'
 import './App.css'
 
@@ -20,6 +21,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  const [subscription, setSubscription] = useState(null)
   const location = useLocation()
   const syncingRef = useRef(false)
 
@@ -55,6 +57,7 @@ function App() {
   useEffect(() => {
     if (!user) {
       setUserProfile(null)
+      setSubscription(null)
       return
     }
 
@@ -66,6 +69,8 @@ function App() {
       try {
         const profile = await syncUserProfile(user)
         setUserProfile(profile)
+        const sub = await fetchMySubscription()
+        setSubscription(sub)
       } catch (err) {
         console.error('Profile sync error:', err)
       } finally {
@@ -94,6 +99,7 @@ function App() {
 
   const isLoggedIn = !!user
   const role = userProfile?.role || null
+  const hasActiveSubscription = isSubscriptionActive(subscription)
   const isPublicRoute = ['/', '/signin', '/signup'].includes(location.pathname)
   const showParticles = isPublicRoute && !isLoggedIn
 
@@ -116,7 +122,7 @@ function App() {
       {showParticles && <ParticleBackground />}
       {isLoggedIn && <NotificationToast />}
       <div className="app-content">
-        {showHeader && <Header user={user} userProfile={userProfile} />}
+        {showHeader && <Header user={user} userProfile={userProfile} subscription={subscription} />}
         <main className={showHeader ? 'main-content' : ''}>
           <Routes>
             {/* ── Public routes ── */}
@@ -136,32 +142,64 @@ function App() {
             {/* ── Protected routes ── */}
             <Route
               path="/dashboard"
-              element={isLoggedIn ? <DashboardPage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn
+                  ? (hasActiveSubscription ? <DashboardPage /> : <Navigate to="/subscription-required" replace />)
+                  : <Navigate to="/signin" replace />
+              }
             />
             <Route
               path="/leads"
-              element={isLoggedIn ? <LeadsPage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn
+                  ? (hasActiveSubscription ? <LeadsPage /> : <Navigate to="/subscription-required" replace />)
+                  : <Navigate to="/signin" replace />
+              }
             />
             <Route
               path="/leads/:id"
-              element={isLoggedIn ? <LeadProfilePage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn
+                  ? (hasActiveSubscription ? <LeadProfilePage /> : <Navigate to="/subscription-required" replace />)
+                  : <Navigate to="/signin" replace />
+              }
             />
             <Route
               path="/pipeline"
-              element={isLoggedIn ? <PipelinePage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn
+                  ? (hasActiveSubscription ? <PipelinePage /> : <Navigate to="/subscription-required" replace />)
+                  : <Navigate to="/signin" replace />
+              }
             />
             <Route
               path="/integrations"
-              element={isLoggedIn ? <IntegrationsPage /> : <Navigate to="/signin" replace />}
+              element={
+                isLoggedIn
+                  ? (hasActiveSubscription ? <IntegrationsPage /> : <Navigate to="/subscription-required" replace />)
+                  : <Navigate to="/signin" replace />
+              }
             />
             <Route path="/gbm" element={<Navigate to="/dashboard" replace />} />
             <Route
               path="/admin"
               element={
                 isLoggedIn ? (
-                  role === 'admin'
+                  role === 'admin' || role === 'super_admin'
                     ? <AdminPage currentUser={user} userProfile={userProfile} />
                     : <Navigate to="/dashboard" replace />
+                ) : (
+                  <Navigate to="/signin" replace />
+                )
+              }
+            />
+            <Route
+              path="/subscription-required"
+              element={
+                isLoggedIn ? (
+                  <div className="loading-screen">
+                    <p>Your subscription is inactive. Please contact the super admin to reactivate your plan.</p>
+                  </div>
                 ) : (
                   <Navigate to="/signin" replace />
                 )

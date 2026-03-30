@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole } from './_lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -78,17 +79,16 @@ export default async function handler(req, res) {
 
     const supabaseAdmin = getSupabaseAdmin()
 
-    const { data: me, error: meErr } = await supabaseAdmin
-      .from('crm_users')
-      .select('id, role')
-      .eq('id', userId)
-      .maybeSingle()
+    const { role, error: roleError } = await fetchUserRole(supabaseAdmin, userId)
+    if (roleError) return res.status(403).json({ success: false, error: roleError })
 
-    if (meErr || !me) {
-      return res.status(403).json({ success: false, error: 'User profile not found.' })
+    const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
+    if (subscriptionError) return res.status(500).json({ success: false, error: subscriptionError })
+    if (!hasActiveSubscription(subscription)) {
+      return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
     }
 
-    let canCreate = me.role === 'admin'
+    let canCreate = isPrivilegedRole(role)
 
     if (!canCreate) {
       const { data: ownedLead, error: leadErr } = await supabaseAdmin

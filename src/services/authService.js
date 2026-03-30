@@ -61,12 +61,12 @@ export async function syncUserProfile(user) {
       return updated ?? existing
     }
 
-    // 2. First user in system becomes admin, rest are team_member
+    // 2. First user in system becomes super_admin, rest are team_member
     const { count } = await supabase
       .from('crm_users')
       .select('id', { count: 'exact', head: true })
 
-    const role = count === 0 || count === null ? 'admin' : 'team_member'
+    const role = count === 0 || count === null ? 'super_admin' : 'team_member'
 
     // 3. Try upsert (insert or update on conflict)
     const { data, error } = await supabase

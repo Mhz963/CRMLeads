@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchLatestSubscription, hasActiveSubscription } from './_lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -76,6 +77,13 @@ export default async function handler(req, res) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const userId = userData.user.id
+    const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
+    if (subscriptionError) {
+      return res.status(500).json({ success: false, error: subscriptionError })
+    }
+    if (!hasActiveSubscription(subscription)) {
+      return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
+    }
 
     // Update with service role to avoid client RLS failures for stage movement.
     const { data: lead, error: updateErr } = await supabaseAdmin

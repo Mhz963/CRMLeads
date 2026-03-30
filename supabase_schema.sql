@@ -14,7 +14,7 @@ create table if not exists public.crm_users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
-  role text not null default 'team_member' check (role in ('admin', 'team_member')),
+  role text not null default 'team_member' check (role in ('super_admin', 'admin', 'team_member', 'business_member')),
   created_at timestamptz default now()
 );
 
@@ -27,7 +27,7 @@ begin
   ) then
     alter table public.crm_users
       add column role text not null default 'team_member'
-      check (role in ('admin', 'team_member'));
+      check (role in ('super_admin', 'admin', 'team_member', 'business_member'));
   end if;
 end $$;
 
@@ -60,25 +60,25 @@ create policy "crm_users_update_self"
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
--- Admins can update any row (role changes)
+-- Admins and super admins can update any row (role changes)
 create policy "crm_users_admin_update"
   on public.crm_users
   for update
   using (
     exists (
       select 1 from public.crm_users cu
-      where cu.id = auth.uid() and cu.role = 'admin'
+      where cu.id = auth.uid() and cu.role in ('admin', 'super_admin')
     )
   );
 
--- Admins can delete any member (remove team member)
+-- Admins and super admins can delete any member (remove team member)
 create policy "crm_users_admin_delete"
   on public.crm_users
   for delete
   using (
     exists (
       select 1 from public.crm_users cu
-      where cu.id = auth.uid() and cu.role = 'admin'
+      where cu.id = auth.uid() and cu.role in ('admin', 'super_admin')
     )
   );
 
@@ -224,6 +224,25 @@ create table if not exists public.gbm_query_state (
 );
 
 -- ──────────────────────────────────────────────────────
+-- SUBSCRIPTIONS (billing state per CRM user)
+-- ──────────────────────────────────────────────────────
+
+create table if not exists public.crm_user_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  plan_code text not null default 'starter',
+  status text not null default 'trialing' check (status in ('trialing', 'active', 'past_due', 'canceled', 'paused')),
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz,
+  max_team_members integer,
+  max_leads_per_month integer,
+  notes text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- ──────────────────────────────────────────────────────
 -- INDEXES
 -- ──────────────────────────────────────────────────────
 
@@ -234,6 +253,7 @@ create index if not exists tasks_assigned_to_idx on public.tasks(assigned_to);
 create index if not exists gbm_businesses_last_seen_idx on public.gbm_businesses(last_seen_at desc);
 create index if not exists gbm_businesses_last_query_idx on public.gbm_businesses(last_query);
 create index if not exists gbm_query_state_updated_idx on public.gbm_query_state(updated_at desc);
+create index if not exists crm_user_subscriptions_user_id_idx on public.crm_user_subscriptions(user_id, created_at desc);
 
 -- ════════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY
@@ -248,6 +268,7 @@ alter table public.tasks enable row level security;
 alter table public.email_templates enable row level security;
 alter table public.gbm_businesses enable row level security;
 alter table public.gbm_query_state enable row level security;
+alter table public.crm_user_subscriptions enable row level security;
 
 -- ─────────── Helper: is current user an admin? ───────────
 -- (used in policies below via sub-select)
@@ -259,31 +280,31 @@ drop policy if exists "leads_admin_select" on public.leads;
 create policy "leads_admin_select"
   on public.leads for select
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 drop policy if exists "leads_admin_insert" on public.leads;
 create policy "leads_admin_insert"
   on public.leads for insert
   with check (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 drop policy if exists "leads_admin_update" on public.leads;
 create policy "leads_admin_update"
   on public.leads for update
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   )
   with check (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 drop policy if exists "leads_admin_delete" on public.leads;
 create policy "leads_admin_delete"
   on public.leads for delete
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 -- Team members: own leads (created_by = self) OR leads assigned to them
@@ -327,7 +348,7 @@ drop policy if exists "companies_agent_related" on public.companies;
 create policy "companies_admin_select"
   on public.companies for select
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "companies_owner_select"
@@ -341,7 +362,7 @@ create policy "companies_insert"
 create policy "companies_admin_update"
   on public.companies for update
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "companies_owner_update"
@@ -357,25 +378,25 @@ drop policy if exists "tasks_agent_assigned" on public.tasks;
 create policy "tasks_admin_select"
   on public.tasks for select
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "tasks_admin_insert"
   on public.tasks for insert
   with check (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "tasks_admin_update"
   on public.tasks for update
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "tasks_admin_delete"
   on public.tasks for delete
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "tasks_member_select"
@@ -403,7 +424,7 @@ drop policy if exists "activities_agent_leads" on public.activities;
 create policy "activities_admin_select"
   on public.activities for select
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "activities_member_select"
@@ -424,7 +445,7 @@ drop policy if exists "email_templates_owner_update" on public.email_templates;
 create policy "email_templates_admin_select"
   on public.email_templates for select
   using (
-    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'admin')
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role in ('admin', 'super_admin'))
   );
 
 create policy "email_templates_owner_select"
@@ -451,6 +472,33 @@ drop policy if exists "gbm_query_state_select_auth" on public.gbm_query_state;
 create policy "gbm_query_state_select_auth"
   on public.gbm_query_state for select
   using (auth.uid() is not null);
+
+-- ══════════════  SUBSCRIPTIONS  ══════════════
+
+drop policy if exists "crm_user_subscriptions_self_select" on public.crm_user_subscriptions;
+create policy "crm_user_subscriptions_self_select"
+  on public.crm_user_subscriptions for select
+  using (user_id = auth.uid());
+
+drop policy if exists "crm_user_subscriptions_super_admin_select" on public.crm_user_subscriptions;
+create policy "crm_user_subscriptions_super_admin_select"
+  on public.crm_user_subscriptions for select
+  using (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  );
+
+drop policy if exists "crm_user_subscriptions_super_admin_insert" on public.crm_user_subscriptions;
+create policy "crm_user_subscriptions_super_admin_insert"
+  on public.crm_user_subscriptions for insert
+  with check (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  );
 
 -- ══════════════════════════════════════════════════════════════
 -- MIGRATION: Add new columns for Demo CRM (NZ Business Clients)

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchUserRole, isPrivilegedRole } from './_lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -63,21 +64,16 @@ export default async function handler(req, res) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { data: me, error: meErr } = await supabaseAdmin
-      .from('crm_users')
-      .select('id, role')
-      .eq('id', userData.user.id)
-      .maybeSingle()
-
-    if (meErr || !me || me.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Admin access required.' })
+    const { role, error: roleError } = await fetchUserRole(supabaseAdmin, userData.user.id)
+    if (roleError || !isPrivilegedRole(role)) {
+      return res.status(403).json({ success: false, error: 'Admin or super admin access required.' })
     }
 
     const body = parseMaybeJson(req.body)
     const email = String(body.email || '').trim().toLowerCase()
     const password = String(body.password || '')
     const fullName = String(body.full_name || '').trim()
-    const allowedRoles = new Set(['admin', 'team_member', 'business_member'])
+    const allowedRoles = new Set(['super_admin', 'admin', 'team_member', 'business_member'])
     const role = allowedRoles.has(body.role) ? body.role : 'team_member'
 
     if (!email || !password) {
@@ -119,6 +115,20 @@ export default async function handler(req, res) {
         error: upsertErr.message || 'Failed to create CRM user profile.',
       })
     }
+
+    // New users start with a trial subscription so they can onboard immediately.
+    const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+    await supabaseAdmin.from('crm_user_subscriptions').insert({
+      user_id: created.user.id,
+      plan_code: 'starter',
+      status: 'trialing',
+      starts_at: new Date().toISOString(),
+      ends_at: trialEnd,
+      max_team_members: 5,
+      max_leads_per_month: 1000,
+      notes: 'Auto-created trial subscription',
+      created_by: userData.user.id,
+    })
 
     return res.status(200).json({
       success: true,

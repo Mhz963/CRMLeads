@@ -244,6 +244,11 @@
   border-color: var(--primary-opacity-30);
   background: var(--primary-opacity-10);
 }
+.role-select.role-super_admin {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.35);
+  background: rgba(124, 58, 237, 0.1);
+}
 
 .role-select.role-team_member {
   color: var(--text-secondary);
@@ -253,6 +258,20 @@
   color: #0ea5e9;
   border-color: rgba(14, 165, 233, 0.35);
   background: rgba(14, 165, 233, 0.1);
+}
+.role-select.role-active,
+.role-select.role-trialing {
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.35);
+  background: rgba(5, 150, 105, 0.1);
+}
+.role-select.role-past_due,
+.role-select.role-paused,
+.role-select.role-canceled,
+.role-select.role-inactive {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .role-select:disabled {

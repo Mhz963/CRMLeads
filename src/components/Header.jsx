@@ -12,7 +12,7 @@ import { signOut } from '../services/authService'
 import NotificationBell from './NotificationBell'
 import './Header.css'
 
-const Header = ({ user, userProfile }) => {
+const Header = ({ user, userProfile, subscription }) => {
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -65,7 +65,7 @@ const Header = ({ user, userProfile }) => {
             <MessageCircle className="nav-icon" />
             Integrations
           </NavLink>
-          {role === 'admin' && (
+          {(role === 'admin' || role === 'super_admin') && (
             <NavLink
               to="/admin"
               className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
@@ -83,12 +83,19 @@ const Header = ({ user, userProfile }) => {
             <div className="user-meta">
               <span className="user-name">{displayName}</span>
               <span className={`role-badge role-badge-${role}`}>
-                {role === 'admin'
+                {role === 'super_admin'
+                  ? 'Super Admin'
+                  : role === 'admin'
                   ? 'Admin'
                   : role === 'business_member'
                     ? 'Business Member'
                     : 'Team Member'}
               </span>
+              {subscription?.status && (
+                <span className="role-badge" title="Current subscription status">
+                  {String(subscription.status).toUpperCase()}
+                </span>
+              )}
             </div>
           </div>
           <button className="signout-btn" type="button" onClick={handleSignOut} title="Sign out">

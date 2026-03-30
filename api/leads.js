@@ -65,6 +65,15 @@ function normalizeWebsite(url) {
   return `https://${clean}`
 }
 
+/** Accept string, comma-separated string, or array of strings (e.g. multi-select forms). */
+function normalizeServicesToString(value) {
+  if (value === null || value === undefined) return ''
+  if (Array.isArray(value)) {
+    return value.map((s) => String(s).trim()).filter(Boolean).join(', ')
+  }
+  return String(value).trim()
+}
+
 function extractBusinessFieldsFromNotes(rawNotes) {
   const notes = (rawNotes || '').trim()
   if (!notes) {
@@ -121,7 +130,9 @@ function buildCustomFields(body, req) {
 
   // Demo mapping for the sample contact form fields.
   const mappedCustom = cleanCustomObject({
-    service: valueFromAliases(body, ['service', 'service_type', 'service_requested']) || (body?.services || ''),
+    service:
+      valueFromAliases(body, ['service', 'service_type', 'service_requested']) ||
+      normalizeServicesToString(body?.services),
     number_of_rooms: parseNumberMaybe(body?.number_of_rooms ?? body?.rooms ?? body?.room_count),
     property_type: valueFromAliases(body, ['property_type', 'propertyType']),
     postcode: valueFromAliases(body, ['postcode', 'zip', 'zip_code', 'postal_code']),
@@ -155,12 +166,17 @@ function formatTelegramLeadMessage({
   notes,
   customFields,
 }) {
+  const serviceLine =
+    (customFields?.services && Array.isArray(customFields.services) && customFields.services.length)
+      ? customFields.services.join(', ')
+      : (service || customFields?.service || '—')
+
   const lines = [
     'New Lead Received',
     `Name: ${leadName || '—'}`,
     `Phone: ${leadPhone || '—'}`,
     `Email: ${leadEmail || '—'}`,
-    `Service: ${service || '—'}`,
+    `Services: ${serviceLine}`,
   ]
 
   const rooms = customFields?.number_of_rooms
@@ -387,6 +403,7 @@ export default async function handler(req, res) {
       notesExtracted.reviews
     )
   const customFields = buildCustomFields(body, req)
+  const leadServices = normalizeServicesToString(services) || normalizeServicesToString(customFields?.service)
 
   if (!leadName) {
     return res.status(400).json({
@@ -452,7 +469,7 @@ export default async function handler(req, res) {
         map_url: leadMapUrl || null,
         google_rating: leadRating,
         google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
-        services: (services || '').trim() || null,
+        services: leadServices || null,
         notes: (notes || '').trim() || null,
         source: 'Website API',
         status: 'New Lead',
@@ -496,7 +513,7 @@ export default async function handler(req, res) {
       leadName,
       leadPhone,
       leadEmail,
-      service: (services || '').trim() || customFields?.service || null,
+      service: leadServices || customFields?.service || null,
       notes: (notes || '').trim() || null,
       customFields,
     }

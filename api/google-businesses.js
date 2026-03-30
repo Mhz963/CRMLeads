@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole } from './_lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -160,17 +161,19 @@ export default async function handler(req, res) {
     const userId = userData.user.id
     const supabaseAdmin = getSupabaseAdmin()
 
-    const { data: roleRow, error: roleErr } = await supabaseAdmin
-      .from('crm_users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (roleErr || roleRow?.role !== 'admin') {
+    const { role, error: roleError } = await fetchUserRole(supabaseAdmin, userId)
+    if (roleError || !isPrivilegedRole(role)) {
       return res.status(403).json({
         success: false,
-        error: 'Only admin users can run Google Maps imports.',
+        error: 'Only admin or super admin users can run Google Maps imports.',
       })
+    }
+    const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
+    if (subscriptionError) {
+      return res.status(500).json({ success: false, error: subscriptionError })
+    }
+    if (!hasActiveSubscription(subscription)) {
+      return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
     }
 
     const body = req.body || {}
