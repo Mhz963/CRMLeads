@@ -200,6 +200,22 @@
   color: #0ea5e9;
 }
 
+.subscription-badge {
+  margin-top: 3px;
+  display: inline-block;
+}
+
+.subscription-badge-active,
+.subscription-badge-trialing {
+  color: #059669;
+}
+
+.subscription-badge-past_due,
+.subscription-badge-canceled,
+.subscription-badge-paused {
+  color: var(--error);
+}
+
 .signout-btn {
   display: flex;
   align-items: center;
@@ -217,6 +233,43 @@
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.3);
   color: var(--error);
+}
+
+.profile-menu-wrap {
+  position: relative;
+}
+
+.profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
+  padding: 0.4rem;
+  z-index: 40;
+}
+
+.profile-menu button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-menu button:hover {
+  background: var(--primary-opacity-10);
+  color: var(--text-primary);
 }
 
 /* ─── Responsive ─── */

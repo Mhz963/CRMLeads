@@ -64,17 +64,25 @@ export default async function handler(req, res) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { role, error: roleError } = await fetchUserRole(supabaseAdmin, userData.user.id)
-    if (roleError || !isPrivilegedRole(role)) {
+    const { role: myRole, error: roleError } = await fetchUserRole(supabaseAdmin, userData.user.id)
+    if (roleError || !isPrivilegedRole(myRole)) {
       return res.status(403).json({ success: false, error: 'Admin or super admin access required.' })
     }
+    const { data: meProfile } = await supabaseAdmin
+      .from('crm_users')
+      .select('business_id')
+      .eq('id', userData.user.id)
+      .maybeSingle()
 
     const body = parseMaybeJson(req.body)
     const email = String(body.email || '').trim().toLowerCase()
     const password = String(body.password || '')
     const fullName = String(body.full_name || '').trim()
     const allowedRoles = new Set(['super_admin', 'admin', 'team_member', 'business_member'])
-    const role = allowedRoles.has(body.role) ? body.role : 'team_member'
+    const targetRole = allowedRoles.has(body.role) ? body.role : 'team_member'
+    if (myRole !== 'super_admin' && (targetRole === 'super_admin' || targetRole === 'admin')) {
+      return res.status(403).json({ success: false, error: 'Only super admin can create admin or super admin users.' })
+    }
 
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required.' })
@@ -104,7 +112,8 @@ export default async function handler(req, res) {
           id: created.user.id,
           email,
           full_name: fullName || null,
-          role,
+          role: targetRole,
+          business_id: myRole === 'super_admin' ? (body.business_id || null) : (meProfile?.business_id || null),
         },
         { onConflict: 'id' }
       )
@@ -120,6 +129,7 @@ export default async function handler(req, res) {
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
     await supabaseAdmin.from('crm_user_subscriptions').insert({
       user_id: created.user.id,
+      business_id: myRole === 'super_admin' ? (body.business_id || null) : (meProfile?.business_id || null),
       plan_code: 'starter',
       status: 'trialing',
       starts_at: new Date().toISOString(),
@@ -136,7 +146,7 @@ export default async function handler(req, res) {
         id: created.user.id,
         email,
         full_name: fullName || null,
-        role,
+        role: targetRole,
       },
     })
   } catch (err) {

@@ -425,7 +425,7 @@ const GBMPage = () => {
 
   const handleNextPage = async () => {
     if (mode !== 'new') {
-      if (currentPage < totalPages) setCurrentPage((p) => p + 1)
+    if (currentPage < totalPages) setCurrentPage((p) => p + 1)
       return
     }
 
@@ -956,7 +956,7 @@ const GBMPage = () => {
                               title="Edit details"
                             >
                               <Edit3 size={13} /> Edit
-                            </button>
+                          </button>
                           </div>
                         </td>
                       </tr>
@@ -966,15 +966,15 @@ const GBMPage = () => {
               </tbody>
             </table>
           </div>
-        </div>
+                </div>
       )}
 
       {mode === 'new' && isLoadingNextPage && !isLoading && (
         <div className="gbm-loading">
           <Loader2 size={18} className="spinning" />
           <span>Loading next page...</span>
-        </div>
-      )}
+              </div>
+            )}
 
       {mode === 'new' && apiError && !isLoading && (
         <div className="gbm-error">

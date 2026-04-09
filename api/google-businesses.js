@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole } from '../lib/access.js'
+import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, isPrivilegedRole, shouldBypassSubscription } from '../lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -168,12 +168,14 @@ export default async function handler(req, res) {
         error: 'Only admin or super admin users can run Google Maps imports.',
       })
     }
-    const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
-    if (subscriptionError) {
-      return res.status(500).json({ success: false, error: subscriptionError })
-    }
-    if (!hasActiveSubscription(subscription)) {
-      return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
+    if (!shouldBypassSubscription(role)) {
+      const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
+      if (subscriptionError) {
+        return res.status(500).json({ success: false, error: subscriptionError })
+      }
+      if (!hasActiveSubscription(subscription)) {
+        return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
+      }
     }
 
     const body = req.body || {}

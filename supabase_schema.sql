@@ -15,6 +15,8 @@ create table if not exists public.crm_users (
   email text,
   full_name text,
   role text not null default 'team_member' check (role in ('super_admin', 'admin', 'team_member', 'business_member')),
+  business_id uuid,
+  stripe_customer_id text,
   created_at timestamptz default now()
 );
 
@@ -95,6 +97,49 @@ create table if not exists public.companies (
   owner_id uuid references auth.users(id)
 );
 
+create table if not exists public.businesses (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  owner_user_id uuid references auth.users(id),
+  contact_email text,
+  contact_phone text,
+  business_type text,
+  company_size text,
+  city text,
+  country text,
+  timezone text,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  created_at timestamptz default now()
+);
+
+create table if not exists public.business_requests (
+  id uuid primary key default gen_random_uuid(),
+  business_name text not null,
+  owner_name text not null,
+  owner_email text not null,
+  owner_phone text,
+  desired_plan text default 'starter',
+  notes text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  review_notes text,
+  reviewed_by uuid references auth.users(id),
+  reviewed_at timestamptz,
+  approved_business_id uuid references public.businesses(id),
+  approved_user_id uuid references auth.users(id),
+  generated_temp_password text,
+  generated_api_key text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.business_api_keys (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  api_key text not null unique,
+  is_enabled boolean not null default true,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
 -- ──────────────────────────────────────────────────────
 -- LEADS
 -- ──────────────────────────────────────────────────────
@@ -110,6 +155,7 @@ create table if not exists public.leads (
   google_rating numeric(3,2),
   google_reviews integer,
   company_id uuid references public.companies(id) on delete set null,
+  business_id uuid references public.businesses(id) on delete set null,
   source text,
   status text default 'New',
   score integer,
@@ -230,14 +276,50 @@ create table if not exists public.gbm_query_state (
 create table if not exists public.crm_user_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  business_id uuid references public.businesses(id) on delete cascade,
   plan_code text not null default 'starter',
   status text not null default 'trialing' check (status in ('trialing', 'active', 'past_due', 'canceled', 'paused')),
   starts_at timestamptz not null default now(),
   ends_at timestamptz,
   max_team_members integer,
   max_leads_per_month integer,
+  stripe_subscription_id text,
+  stripe_customer_id text,
   notes text,
   created_by uuid references auth.users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.crm_invoices (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  plan_code text not null default 'starter',
+  amount_cents integer not null check (amount_cents > 0),
+  currency text not null default 'usd',
+  status text not null default 'pending' check (status in ('pending', 'paid', 'canceled', 'overdue')),
+  due_at timestamptz,
+  paid_at timestamptz,
+  email_sent_at timestamptz,
+  reminder_sent_at timestamptz,
+  notes text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.crm_support_tickets (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  subject text not null,
+  description text not null,
+  priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
+  status text not null default 'open' check (status in ('open', 'in_progress', 'resolved', 'closed')),
+  response_message text,
+  responded_by uuid references auth.users(id),
+  responded_at timestamptz,
+  created_by uuid not null references auth.users(id),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -254,6 +336,12 @@ create index if not exists gbm_businesses_last_seen_idx on public.gbm_businesses
 create index if not exists gbm_businesses_last_query_idx on public.gbm_businesses(last_query);
 create index if not exists gbm_query_state_updated_idx on public.gbm_query_state(updated_at desc);
 create index if not exists crm_user_subscriptions_user_id_idx on public.crm_user_subscriptions(user_id, created_at desc);
+create index if not exists crm_invoices_business_id_idx on public.crm_invoices(business_id, created_at desc);
+create index if not exists crm_invoices_user_id_idx on public.crm_invoices(user_id, created_at desc);
+create index if not exists crm_support_tickets_business_id_idx on public.crm_support_tickets(business_id, created_at desc);
+create index if not exists crm_support_tickets_status_idx on public.crm_support_tickets(status, created_at desc);
+create index if not exists leads_business_id_idx on public.leads(business_id);
+create index if not exists crm_users_business_id_idx on public.crm_users(business_id);
 
 -- ════════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY
@@ -269,6 +357,11 @@ alter table public.email_templates enable row level security;
 alter table public.gbm_businesses enable row level security;
 alter table public.gbm_query_state enable row level security;
 alter table public.crm_user_subscriptions enable row level security;
+alter table public.crm_invoices enable row level security;
+alter table public.crm_support_tickets enable row level security;
+alter table public.businesses enable row level security;
+alter table public.business_requests enable row level security;
+alter table public.business_api_keys enable row level security;
 
 -- ─────────── Helper: is current user an admin? ───────────
 -- (used in policies below via sub-select)
@@ -276,6 +369,54 @@ alter table public.crm_user_subscriptions enable row level security;
 -- ══════════════  LEADS  ══════════════
 
 -- Admins: full access
+drop policy if exists "crm_invoices_admin_all" on public.crm_invoices;
+create policy "crm_invoices_admin_all"
+  on public.crm_invoices for all
+  using (
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'super_admin')
+  )
+  with check (
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'super_admin')
+  );
+
+drop policy if exists "crm_invoices_member_select" on public.crm_invoices;
+create policy "crm_invoices_member_select"
+  on public.crm_invoices for select
+  using (user_id = auth.uid());
+
+drop policy if exists "crm_support_super_admin_all" on public.crm_support_tickets;
+create policy "crm_support_super_admin_all"
+  on public.crm_support_tickets for all
+  using (
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'super_admin')
+  )
+  with check (
+    exists (select 1 from public.crm_users cu where cu.id = auth.uid() and cu.role = 'super_admin')
+  );
+
+drop policy if exists "crm_support_business_select" on public.crm_support_tickets;
+create policy "crm_support_business_select"
+  on public.crm_support_tickets for select
+  using (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid()
+        and cu.business_id = crm_support_tickets.business_id
+    )
+  );
+
+drop policy if exists "crm_support_business_insert" on public.crm_support_tickets;
+create policy "crm_support_business_insert"
+  on public.crm_support_tickets for insert
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid()
+        and cu.business_id = crm_support_tickets.business_id
+    )
+  );
+
 drop policy if exists "leads_admin_select" on public.leads;
 create policy "leads_admin_select"
   on public.leads for select
@@ -500,6 +641,47 @@ create policy "crm_user_subscriptions_super_admin_insert"
     )
   );
 
+drop policy if exists "businesses_super_admin_select" on public.businesses;
+create policy "businesses_super_admin_select"
+  on public.businesses for select
+  using (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  );
+
+drop policy if exists "businesses_admin_own_select" on public.businesses;
+create policy "businesses_admin_own_select"
+  on public.businesses for select
+  using (owner_user_id = auth.uid());
+
+drop policy if exists "business_requests_super_admin_all" on public.business_requests;
+create policy "business_requests_super_admin_all"
+  on public.business_requests for all
+  using (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  );
+
+drop policy if exists "business_api_keys_super_admin_select" on public.business_api_keys;
+create policy "business_api_keys_super_admin_select"
+  on public.business_api_keys for select
+  using (
+    exists (
+      select 1 from public.crm_users cu
+      where cu.id = auth.uid() and cu.role = 'super_admin'
+    )
+  );
+
 -- ══════════════════════════════════════════════════════════════
 -- MIGRATION: Add new columns for Demo CRM (NZ Business Clients)
 -- Run this section if tables already exist without these columns
@@ -515,6 +697,18 @@ alter table public.leads add column if not exists website text;
 alter table public.leads add column if not exists map_url text;
 alter table public.leads add column if not exists google_rating numeric(3,2);
 alter table public.leads add column if not exists google_reviews integer;
+
+-- New fields on businesses table (Business Registration form)
+alter table public.businesses add column if not exists business_type text;
+alter table public.businesses add column if not exists company_size text;
+alter table public.businesses add column if not exists city text;
+alter table public.businesses add column if not exists country text;
+alter table public.businesses add column if not exists timezone text;
+
+-- Stripe billing (subscriptions)
+alter table public.crm_users add column if not exists stripe_customer_id text;
+alter table public.crm_user_subscriptions add column if not exists stripe_subscription_id text;
+alter table public.crm_user_subscriptions add column if not exists stripe_customer_id text;
 
 -- Update default status for new leads
 alter table public.leads alter column status set default 'New Lead';

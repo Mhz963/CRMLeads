@@ -19,6 +19,16 @@ const AuthPage = ({ mode = 'signin' }) => {
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
 
+  const fillSuperAdminDemo = () => {
+    setForm((prev) => ({
+      ...prev,
+      email: 'demo.superadmin@crmleads.app',
+      password: 'Demo@12345',
+      confirmPassword: 'Demo@12345',
+    }))
+    setError(null)
+  }
+
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
     setError(null)
@@ -61,17 +71,20 @@ const AuthPage = ({ mode = 'signin' }) => {
 
     setLoading(true)
     try {
+      const loginEmail = !isSignUp && !String(form.email).includes('@')
+        ? `${String(form.email).trim().toLowerCase()}@crm-owner.local`
+        : form.email
       if (isSignUp) {
         const data = await signUp({
-          email: form.email,
+          email: loginEmail,
           password: form.password,
           fullName: form.fullName,
         })
 
-        // If session is returned (email confirmation disabled), sync & go to dashboard
+        // If session is returned (email confirmation disabled), sync & route by role
         if (data?.session?.user) {
-          await syncUserProfile(data.session.user)
-          navigate('/dashboard', { replace: true })
+          const profile = await syncUserProfile(data.session.user)
+          navigate(profile?.role === 'super_admin' ? '/platform' : '/dashboard', { replace: true })
         } else {
           // Email confirmation is required — tell user to check inbox
           setSuccessMsg(
@@ -80,13 +93,14 @@ const AuthPage = ({ mode = 'signin' }) => {
           setForm({ fullName: '', email: '', password: '', confirmPassword: '' })
         }
       } else {
-        const data = await signIn({ email: form.email, password: form.password })
+        const data = await signIn({ email: loginEmail, password: form.password })
 
         // Directly sync profile to crm_users right after sign-in
         if (data?.user) {
-          await syncUserProfile(data.user)
+          const profile = await syncUserProfile(data.user)
+          navigate(profile?.role === 'super_admin' ? '/platform' : '/dashboard', { replace: true })
+          return
         }
-
         navigate('/dashboard', { replace: true })
       }
     } catch (err) {
@@ -135,12 +149,12 @@ const AuthPage = ({ mode = 'signin' }) => {
             )}
 
             <div className="auth-field">
-              <label htmlFor="email">Email Address</label>
+              <label htmlFor="email">{isSignUp ? 'Email Address' : 'Email or Username'}</label>
               <input
                 id="email"
                 name="email"
-                type="email"
-                placeholder="you@company.com"
+                type={isSignUp ? 'email' : 'text'}
+                placeholder={isSignUp ? 'you@company.com' : 'you@company.com or username'}
                 value={form.email}
                 onChange={handleChange}
                 autoComplete="email"
@@ -214,6 +228,17 @@ const AuthPage = ({ mode = 'signin' }) => {
           </form>
 
           <div className="auth-footer">
+            {!isSignUp && (
+              <div className="demo-superadmin-box">
+                <p className="demo-title">Super Admin Demo</p>
+                <p><strong>Email:</strong> demo.superadmin@crmleads.app</p>
+                <p><strong>Password:</strong> Demo@12345</p>
+                <button type="button" className="demo-fill-btn" onClick={fillSuperAdminDemo}>
+                  Use demo credentials
+                </button>
+                <p className="demo-note">Create this user once in Supabase Auth and set role to <code>super_admin</code>.</p>
+              </div>
+            )}
             {isSignUp ? (
               <p>
                 Already have an account?{' '}

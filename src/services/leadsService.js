@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { fetchUserProfile } from './authService'
 
 // Pipeline stages for NZ Demo CRM
 export const PIPELINE_STAGES = ['New Lead', 'Contacted', 'Interested', 'Proposal', 'Closed']
@@ -16,15 +17,30 @@ function normalizeLeadStatus(status) {
 }
 
 function normalizeLeadRecord(lead) {
+  const businessName = Array.isArray(lead?.businesses)
+    ? lead.businesses?.[0]?.name || null
+    : lead?.businesses?.name || null
   return {
     ...lead,
     status: normalizeLeadStatus(lead?.status),
+    business_name: businessName,
   }
 }
 
 async function currentUserId() {
   const { data } = await supabase.auth.getUser()
   return data?.user?.id ?? null
+}
+
+async function currentAccessContext() {
+  const userId = await currentUserId()
+  if (!userId) return { userId: null, role: null, businessId: null }
+  const profile = await fetchUserProfile(userId)
+  return {
+    userId,
+    role: profile?.role || null,
+    businessId: profile?.business_id || null,
+  }
 }
 
 async function fallbackMoveLeadStage(id, newStatus) {
@@ -96,26 +112,37 @@ async function fallbackDeleteLead(id) {
 /* ─────────────────────  CRUD  ───────────────────── */
 
 export async function fetchLeads() {
-  const { data, error } = await supabase
+  const access = await currentAccessContext()
+  if (access.role !== 'super_admin' && !access.businessId) return []
+  let query = supabase
     .from('leads')
-    .select('*')
+    .select('*, businesses(name)')
     .order('created_at', { ascending: false })
+  if (access.role !== 'super_admin') query = query.eq('business_id', access.businessId)
+  const { data, error } = await query
   if (error) throw error
   return (data || []).map(normalizeLeadRecord)
 }
 
 export async function fetchLeadById(id) {
-  const { data, error } = await supabase
+  const access = await currentAccessContext()
+  if (access.role !== 'super_admin' && !access.businessId) return null
+  let query = supabase
     .from('leads')
-    .select('*')
+    .select('*, businesses(name)')
     .eq('id', id)
-    .single()
+  if (access.role !== 'super_admin') query = query.eq('business_id', access.businessId)
+  const { data, error } = await query.single()
   if (error) throw error
   return normalizeLeadRecord(data)
 }
 
 export async function createLead(payload) {
-  const userId = await currentUserId()
+  const access = await currentAccessContext()
+  if (access.role !== 'super_admin' && !access.businessId) {
+    throw new Error('Please register your business first from Business Info.')
+  }
+  const userId = access.userId
   const { data, error } = await supabase
     .from('leads')
     .insert({
@@ -143,6 +170,7 @@ export async function createLead(payload) {
       assigned_to: payload.assigned_to ?? null,
       created_by: userId,
       company_id: payload.company_id ?? null,
+      business_id: access.role === 'super_admin' ? (payload.business_id ?? null) : access.businessId,
     })
     .select()
     .single()
@@ -247,9 +275,22 @@ function parseCSVLine(line) {
 /* ─────────────────────  DASHBOARD STATS  ───────────────────── */
 
 export async function fetchDashboardStats() {
-  const { data: allLeads, error } = await supabase
+  const access = await currentAccessContext()
+  if (access.role !== 'super_admin' && !access.businessId) {
+    return {
+      totalLeads: 0,
+      byStage: PIPELINE_STAGES.reduce((acc, stage) => ({ ...acc, [stage]: 0 }), {}),
+      conversionRate: 0,
+      bySource: {},
+      byTag: {},
+      newThisWeek: 0,
+    }
+  }
+  let query = supabase
     .from('leads')
     .select('status, score, created_at, source, tag')
+  if (access.role !== 'super_admin') query = query.eq('business_id', access.businessId)
+  const { data: allLeads, error } = await query
   if (error) throw error
 
   const normalizedLeads = (allLeads || []).map((l) => ({

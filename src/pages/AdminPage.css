@@ -18,12 +18,29 @@
   margin-top: 0.25rem;
 }
 
+.admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .admin-create-user-card {
   margin-top: 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 1rem;
+}
+
+.admin-user-modal {
+  max-width: 760px;
+}
+
+.modal-form-flat.admin-create-user-card {
+  margin-top: 0;
+  border: none;
+  padding: 0;
 }
 
 .admin-create-user-card h3 {
@@ -261,9 +278,19 @@
 }
 .role-select.role-active,
 .role-select.role-trialing {
-  color: #059669;
-  border-color: rgba(5, 150, 105, 0.35);
-  background: rgba(5, 150, 105, 0.1);
+  color: #047857;
+  border-color: rgba(4, 120, 87, 0.5);
+  background: rgba(16, 185, 129, 0.2);
+  font-weight: 700;
+}
+
+/* Safety for any mixed-case status values coming from backend */
+.role-select.role-Active,
+.role-select.role-Trialing {
+  color: #047857;
+  border-color: rgba(4, 120, 87, 0.5);
+  background: rgba(16, 185, 129, 0.2);
+  font-weight: 700;
 }
 .role-select.role-past_due,
 .role-select.role-paused,
@@ -323,6 +350,27 @@
   text-align: center;
   color: var(--text-muted);
   padding: 2rem !important;
+}
+
+.admin-business-section {
+  margin-top: 2rem;
+}
+
+.admin-business-table {
+  margin-top: 1rem;
+}
+
+.business-credentials {
+  margin-top: 0.85rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 0.5rem;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.business-credentials p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
 }
 
 /* Spinning */
@@ -658,6 +706,11 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .admin-create-user-grid {
     grid-template-columns: 1fr;
   }

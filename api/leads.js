@@ -26,7 +26,7 @@ function getSupabaseAdmin() {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-business-key, Authorization',
   'Access-Control-Max-Age': '86400',
 }
 
@@ -325,6 +325,21 @@ async function sendTelegramLeadNotificationForUsers(supabaseAdmin, payload) {
   }
 }
 
+async function resolveBusinessFromHeader(supabaseAdmin, req) {
+  const businessKey = String(req.headers['x-business-key'] || '').trim()
+  if (!businessKey) return { businessId: null, error: null }
+  const { data, error } = await supabaseAdmin
+    .from('business_api_keys')
+    .select('business_id, is_enabled')
+    .eq('api_key', businessKey)
+    .maybeSingle()
+  if (error) return { businessId: null, error: error.message || 'Failed to validate x-business-key.' }
+  if (!data || !data.is_enabled || !data.business_id) {
+    return { businessId: null, error: 'Invalid or disabled x-business-key.' }
+  }
+  return { businessId: data.business_id, error: null }
+}
+
 export default async function handler(req, res) {
   // Set CORS headers on EVERY response (including OPTIONS)
   Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -346,6 +361,7 @@ export default async function handler(req, res) {
 
   // ── Validate API key ──
   const providedKey = req.headers['x-api-key']
+  const providedBusinessKey = String(req.headers['x-business-key'] || '').trim()
   if (!apiKey) {
     // If CRM_API_KEY is not set on server, reject all requests (safe default)
     return res.status(500).json({
@@ -353,10 +369,10 @@ export default async function handler(req, res) {
       error: 'API is not configured. Set CRM_API_KEY in environment variables.',
     })
   }
-  if (providedKey !== apiKey) {
+  if (!providedBusinessKey && providedKey !== apiKey) {
     return res.status(401).json({
       success: false,
-      error: 'Invalid or missing API key. Include x-api-key header.',
+      error: 'Invalid or missing API key. Include x-api-key or x-business-key header.',
     })
   }
 
@@ -450,6 +466,10 @@ export default async function handler(req, res) {
   // ── Insert into Supabase ──
   try {
     const supabase = getSupabaseAdmin()
+    const { businessId, error: businessKeyError } = await resolveBusinessFromHeader(supabase, req)
+    if (businessKeyError) {
+      return res.status(401).json({ success: false, error: businessKeyError })
+    }
 
     // Capture the caller's IP for analytics
     const userIp =
@@ -478,6 +498,7 @@ export default async function handler(req, res) {
         score: null,
         assigned_to: null,
         created_by: null,        // No authenticated user — came from external API
+        business_id: businessId,
         custom_fields: Object.keys(customFields).length ? customFields : null,
       })
       .select('id, full_name, email, status, source, created_at')
@@ -537,6 +558,7 @@ export default async function handler(req, res) {
         google_rating: leadRating,
         google_reviews: leadReviews !== null ? Math.round(leadReviews) : null,
         custom_fields: Object.keys(customFields).length ? customFields : null,
+        business_id: businessId,
         created_at: data.created_at,
       },
       telegram,

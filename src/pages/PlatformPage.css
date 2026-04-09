@@ -1,0 +1,403 @@
+.platform-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.platform-header h2 {
+  font-size: 1.8rem;
+  color: var(--text-primary);
+}
+
+.platform-header p {
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+}
+
+.platform-tabs {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 1.25rem;
+}
+
+.platform-tab {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.platform-tab.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-opacity-10);
+}
+
+.platform-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.platform-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.platform-error {
+  color: var(--error);
+}
+
+.platform-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.platform-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--bg-card);
+}
+
+.platform-metric-card svg { color: var(--primary); }
+
+.platform-metric-value {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.platform-metric-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.platform-table th,
+.platform-table td {
+  padding: 0.65rem 0.5rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.platform-table th {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-active,
+.status-trialing,
+.status-open {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.12);
+}
+
+.status-past_due,
+.status-canceled,
+.status-closed {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.status-in_progress,
+.status-paused {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.status-resolved {
+  color: #0369a1;
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.platform-inline-select,
+.platform-inline-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: var(--text-primary);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.platform-inline-textarea {
+  resize: vertical;
+}
+
+.platform-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.platform-muted {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  margin-top: 0.35rem;
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.platform-action-btn {
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.45rem;
+  margin-right: 0.35rem;
+  cursor: pointer;
+  background: #fff;
+}
+
+.platform-action-btn.ok {
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.5);
+}
+
+.platform-action-btn.no {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.platform-action-btn.edit {
+  color: var(--primary);
+  border-color: var(--primary-opacity-40);
+  background: var(--primary-opacity-10);
+}
+
+.platform-approval-modal {
+  max-width: 720px;
+}
+
+.platform-approval-body p {
+  color: var(--text-secondary);
+  margin-bottom: 0.8rem;
+}
+
+.platform-approval-grid {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.credential-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.copy-credential-btn {
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copy-credential-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-opacity-10);
+}
+
+.platform-approval-grid code {
+  display: inline-block;
+  margin-top: 0.2rem;
+  word-break: break-all;
+  background: var(--primary-opacity-10);
+  border-radius: 0.35rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.platform-business-profile-modal {
+  max-width: 900px;
+}
+
+.platform-create-business-modal {
+  max-width: 760px;
+}
+
+.platform-create-business-form {
+  margin-top: 0.4rem;
+}
+
+.platform-create-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.platform-create-grid .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.platform-create-grid .form-field label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.platform-create-grid .form-field input,
+.platform-create-grid .form-field select {
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: var(--text-primary);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.platform-create-grid .form-field input:focus,
+.platform-create-grid .form-field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-opacity-10);
+}
+
+.platform-create-error {
+  margin-top: 0.8rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--error);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.platform-business-profile-body {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.platform-business-section {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #fff;
+}
+
+.platform-business-section h4 {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.platform-business-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.platform-business-grid strong {
+  color: var(--text-primary);
+}
+
+.platform-business-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.75rem;
+}
+
+.platform-business-edit-grid .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.platform-business-edit-grid .form-field label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.platform-business-edit-grid .form-field input,
+.platform-business-edit-grid .form-field select {
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: var(--text-primary);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+@media (max-width: 900px) {
+  .platform-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .platform-metrics,
+  .platform-kv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-business-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-business-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .platform-create-grid {
+    grid-template-columns: 1fr;
+  }
+}

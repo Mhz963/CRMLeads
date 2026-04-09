@@ -40,6 +40,11 @@ const features = [
     title: 'Email Integration',
     desc: 'Send emails, track opens, use templates, and build automated follow-up sequences.',
   },
+  {
+    icon: <Zap className="feature-icon" />,
+    title: 'Third-Party Integrations',
+    desc: 'Connect Telegram, payment gateways, analytics tools, and external business apps to keep every workflow in sync.',
+  },
 ]
 
 const stats = [
@@ -155,9 +160,19 @@ const LandingPage = () => {
           </div>
           <div className="role-card role-member">
             <Users className="role-icon" />
-            <h3>Team Member</h3>
+            <h3>Manager</h3>
             <ul>
-              <li><CheckCircle size={16} /> Access own leads &amp; contacts</li>
+              <li><CheckCircle size={16} /> View business leads and pipeline</li>
+              <li><CheckCircle size={16} /> Assign leads to sales agents</li>
+              <li><CheckCircle size={16} /> Monitor team performance</li>
+              <li><CheckCircle size={16} /> Track activities and follow-ups</li>
+            </ul>
+          </div>
+          <div className="role-card role-member">
+            <Users className="role-icon" />
+            <h3>Sales Agent</h3>
+            <ul>
+              <li><CheckCircle size={16} /> Access assigned leads &amp; contacts</li>
               <li><CheckCircle size={16} /> Update lead statuses</li>
               <li><CheckCircle size={16} /> Log activities &amp; notes</li>
               <li><CheckCircle size={16} /> View personal dashboard</li>

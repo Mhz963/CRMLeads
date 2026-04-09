@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { fetchLatestSubscription, hasActiveSubscription } from '../lib/access.js'
+import { fetchLatestSubscription, fetchUserRole, hasActiveSubscription, shouldBypassSubscription } from '../lib/access.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -77,12 +77,16 @@ export default async function handler(req, res) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const userId = userData.user.id
-    const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
-    if (subscriptionError) {
-      return res.status(500).json({ success: false, error: subscriptionError })
-    }
-    if (!hasActiveSubscription(subscription)) {
-      return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
+    const { role, error: roleError } = await fetchUserRole(supabaseAdmin, userId)
+    if (roleError) return res.status(403).json({ success: false, error: roleError })
+    if (!shouldBypassSubscription(role)) {
+      const { subscription, error: subscriptionError } = await fetchLatestSubscription(supabaseAdmin, userId)
+      if (subscriptionError) {
+        return res.status(500).json({ success: false, error: subscriptionError })
+      }
+      if (!hasActiveSubscription(subscription)) {
+        return res.status(402).json({ success: false, error: 'Your subscription is inactive. Please renew to continue.' })
+      }
     }
 
     // Update with service role to avoid client RLS failures for stage movement.

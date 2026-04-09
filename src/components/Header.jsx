@@ -1,11 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import {
   Sparkles,
   LayoutDashboard,
   Users,
   KanbanSquare,
-  MessageCircle,
   Shield,
+  Building2,
+  User,
+  Plug,
+  CreditCard,
+  Receipt,
+  ChevronDown,
   LogOut,
 } from 'lucide-react'
 import { signOut } from '../services/authService'
@@ -14,6 +20,8 @@ import './Header.css'
 
 const Header = ({ user, userProfile, subscription }) => {
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
 
   const handleSignOut = async () => {
     try {
@@ -25,8 +33,18 @@ const Header = ({ user, userProfile, subscription }) => {
   }
 
   const role = userProfile?.role
+  const dashboardPath = role === 'super_admin' ? '/platform' : '/dashboard'
   const displayName = userProfile?.full_name || user?.email || ''
   const initial = displayName.charAt(0).toUpperCase()
+  const subscriptionStatus = String(subscription?.status || '').toLowerCase()
+
+  useEffect(() => {
+    const onClickOutside = (event) => {
+      if (!menuRef.current?.contains(event.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
 
   return (
     <header className="header">
@@ -38,7 +56,7 @@ const Header = ({ user, userProfile, subscription }) => {
 
         <nav className="nav-tabs">
           <NavLink
-            to="/dashboard"
+            to={dashboardPath}
             className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
           >
             <LayoutDashboard className="nav-icon" />
@@ -58,20 +76,13 @@ const Header = ({ user, userProfile, subscription }) => {
             <KanbanSquare className="nav-icon" />
             Pipeline
           </NavLink>
-          <NavLink
-            to="/integrations"
-            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-          >
-            <MessageCircle className="nav-icon" />
-            Integrations
-          </NavLink>
           {(role === 'admin' || role === 'super_admin') && (
             <NavLink
               to="/admin"
               className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
             >
               <Shield className="nav-icon" />
-              Admin
+              User
             </NavLink>
           )}
         </nav>
@@ -88,19 +99,51 @@ const Header = ({ user, userProfile, subscription }) => {
                   : role === 'admin'
                   ? 'Admin'
                   : role === 'business_member'
-                    ? 'Business Member'
-                    : 'Team Member'}
+                    ? 'Manager'
+                    : 'Sales Assistant'}
               </span>
               {subscription?.status && (
-                <span className="role-badge" title="Current subscription status">
+                <span
+                  className={`role-badge subscription-badge subscription-badge-${subscriptionStatus}`}
+                  title="Current subscription status"
+                >
                   {String(subscription.status).toUpperCase()}
                 </span>
               )}
             </div>
           </div>
-          <button className="signout-btn" type="button" onClick={handleSignOut} title="Sign out">
-            <LogOut size={18} />
-          </button>
+          <div className="profile-menu-wrap" ref={menuRef}>
+            <button
+              className="signout-btn"
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              title="Open profile menu"
+            >
+              <ChevronDown size={18} />
+            </button>
+            {menuOpen && (
+              <div className="profile-menu">
+                <button type="button" onClick={() => { navigate('/profile'); setMenuOpen(false) }}>
+                  <User size={15} /> Profile
+                </button>
+                <button type="button" onClick={() => { navigate('/business-info'); setMenuOpen(false) }}>
+                  <Building2 size={15} /> Business Info
+                </button>
+                <button type="button" onClick={() => { navigate('/integrations'); setMenuOpen(false) }}>
+                  <Plug size={15} /> Integrations
+                </button>
+                <button type="button" onClick={() => { navigate('/subscriptions'); setMenuOpen(false) }}>
+                  <CreditCard size={15} /> Subscriptions
+                </button>
+                <button type="button" onClick={() => { navigate('/invoices'); setMenuOpen(false) }}>
+                  <Receipt size={15} /> Invoices
+                </button>
+                <button type="button" onClick={handleSignOut}>
+                  <LogOut size={15} /> Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

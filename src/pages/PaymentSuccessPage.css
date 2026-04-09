@@ -1,0 +1,102 @@
+.payment-success-page {
+  position: relative;
+  min-height: calc(100vh - 5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.payment-success-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(0, 139, 255, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 80% 75%, rgba(0, 139, 255, 0.14) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.payment-success-modal {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 20px 48px var(--primary-opacity-20);
+  padding: 2rem 1.8rem;
+  text-align: center;
+}
+
+.payment-success-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--primary-opacity-30);
+  background: var(--primary-opacity-10);
+  color: var(--primary);
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.payment-success-icon {
+  margin: 1rem auto 0.6rem;
+  color: #10b981;
+}
+
+.payment-success-modal h2 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--text-primary);
+}
+
+.payment-success-modal p {
+  margin: 0.7rem auto 0;
+  max-width: 36rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.payment-success-sync {
+  margin: 0.85rem auto 0;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.payment-success-spinning {
+  animation: payment-success-spin 1s linear infinite;
+}
+
+.payment-success-error {
+  margin: 0.85rem auto 0;
+  max-width: 32rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--error);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.88rem;
+}
+
+.payment-success-redirect {
+  margin: 1rem auto 1.2rem;
+  width: fit-content;
+  padding: 0.45rem 0.8rem;
+  border: 1px dashed var(--primary-opacity-40);
+  border-radius: 0.55rem;
+  color: var(--text-secondary);
+  background: var(--primary-opacity-10);
+}
+
+@keyframes payment-success-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

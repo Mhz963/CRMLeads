@@ -204,6 +204,36 @@
   color: var(--text-secondary);
 }
 
+.demo-superadmin-box {
+  text-align: left;
+  background: var(--primary-opacity-10);
+  border: 1px solid var(--primary-opacity-20);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.demo-title {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.demo-fill-btn {
+  margin-top: 0.5rem;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: #fff;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.demo-note {
+  margin-top: 0.5rem;
+  font-size: 0.78rem !important;
+}
+
 .auth-link {
   color: var(--primary);
   font-weight: 600;

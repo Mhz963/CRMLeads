@@ -66,9 +66,10 @@ function getLeadPriorityMeta(lead) {
   return { label: 'Cold', className: 'cold' }
 }
 
-const LeadsPage = () => {
+const LeadsPage = ({ userProfile }) => {
   const queryClient = useQueryClient()
   const fileInputRef = useRef(null)
+  const isSuperAdmin = String(userProfile?.role || '').toLowerCase() === 'super_admin'
 
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
@@ -341,16 +342,17 @@ const LeadsPage = () => {
           <span>Loading leads...</span>
         </div>
       ) : isError ? (
-        <div className="leads-error">
-          <AlertCircle size={28} />
-          <span>Failed to load leads.</span>
-          <button onClick={() => refetch()} className="btn-outline">Retry</button>
+        <div className="leads-empty">
+          <FileSpreadsheet size={40} />
+          <h3>Leads are not available yet</h3>
+          <p>There are no accessible leads for this business at the moment.</p>
+          <button onClick={() => refetch()} className="btn-outline">Refresh</button>
         </div>
       ) : displayedLeads.length === 0 ? (
         <div className="leads-empty">
           <FileSpreadsheet size={40} />
-          <h3>No leads found</h3>
-          <p>{leads.length === 0 ? 'Get started by adding your first lead.' : 'Try adjusting your search or filters.'}</p>
+          <h3>No leads available yet</h3>
+          <p>{leads.length === 0 ? 'Leads will appear here once they are added.' : 'Try adjusting your search or filters.'}</p>
           {leads.length === 0 && (
             <button onClick={() => setShowAddModal(true)} className="btn-primary-action" style={{ marginTop: '1rem' }}>
               <Plus size={16} />
@@ -366,6 +368,7 @@ const LeadsPage = () => {
                 <SortHeader field="full_name">Name</SortHeader>
                 <SortHeader field="email">Email</SortHeader>
                 <th>Phone</th>
+                {isSuperAdmin && <th>Business</th>}
                 <th>Business</th>
                 <SortHeader field="status">Status</SortHeader>
                 <SortHeader field="source">Source</SortHeader>
@@ -387,6 +390,18 @@ const LeadsPage = () => {
                   </td>
                   <td className="cell-muted">{lead.email || '—'}</td>
                   <td className="cell-muted">{lead.phone || '—'}</td>
+                  {isSuperAdmin && (
+                    <td className="cell-muted">
+                      {lead.business_id && lead.business_name ? (
+                        <Link
+                          to={`/platform?tab=businesses&businessId=${encodeURIComponent(lead.business_id)}`}
+                          className="lead-name-link"
+                        >
+                          {lead.business_name}
+                        </Link>
+                      ) : '—'}
+                    </td>
+                  )}
                   <td className="cell-muted">
                     <div className="business-cell">
                       {lead.business_address && <div>{lead.business_address}</div>}

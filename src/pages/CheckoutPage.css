@@ -1,0 +1,196 @@
+.checkout-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0.4rem;
+}
+
+.checkout-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.6rem;
+  box-shadow:
+    0 18px 40px rgba(0, 139, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.checkout-top-glow {
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 139, 255, 0.22) 0%, rgba(0, 139, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.checkout-header h2 {
+  margin: 0;
+  font-size: 1.9rem;
+  line-height: 1.2;
+}
+
+.checkout-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: var(--primary-opacity-10);
+  border: 1px solid var(--primary-opacity-30);
+}
+
+.checkout-header p {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+}
+
+.checkout-plan {
+  margin-top: 1.2rem;
+  padding: 1rem 1.1rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(0, 139, 255, 0.28);
+  background: linear-gradient(130deg, rgba(0, 139, 255, 0.12) 0%, rgba(0, 139, 255, 0.04) 100%);
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.checkout-plan-main strong {
+  display: block;
+  font-size: 1.25rem;
+  margin: 0.1rem 0;
+}
+
+.checkout-plan-main span:last-child {
+  color: var(--text-secondary);
+}
+
+.checkout-plan-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.checkout-plan-meta span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(0, 139, 255, 0.22);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+}
+
+.checkout-plan-label {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.checkout-benefits {
+  margin-top: 0.95rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.checkout-benefit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.checkout-benefit svg {
+  color: var(--primary);
+}
+
+.checkout-error {
+  margin-top: 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--error);
+  padding: 0.65rem 0.85rem;
+}
+
+.checkout-link-section {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--primary-opacity-40);
+  border-radius: 0.65rem;
+  background: var(--primary-opacity-10);
+}
+
+.checkout-link-section .btn-outline {
+  min-width: 260px;
+}
+
+.checkout-stripe-link {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.85rem;
+  color: var(--primary);
+  text-decoration: none;
+  word-break: break-all;
+  font-weight: 600;
+}
+
+.checkout-stripe-link:hover {
+  text-decoration: underline;
+}
+
+.checkout-link-hint {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.checkout-actions {
+  margin-top: 1.2rem;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.checkout-actions .spinning {
+  animation: checkout-spin 1s linear infinite;
+}
+
+@keyframes checkout-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 700px) {
+  .checkout-card {
+    padding: 1.1rem;
+  }
+
+  .checkout-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .checkout-actions {
+    justify-content: stretch;
+  }
+
+  .checkout-actions button {
+    flex: 1;
+  }
+}

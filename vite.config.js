@@ -14,7 +14,7 @@ export default defineConfig({
         secure: true,
       },
       '/api': {
-        target: 'https://crm-leads-beige.vercel.app',
+        target: 'https://crm-sand-chi-82.vercel.app',
         changeOrigin: true,
         secure: true,
       },
